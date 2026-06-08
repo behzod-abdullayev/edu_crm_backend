@@ -1,0 +1,19 @@
+{
+  "created": "To'lov muvaffaqiyatli qayd etildi",
+  "updated": "To'lov yangilandi",
+  "deleted": "To'lov o'chirildi",
+  "not_found": "To'lov topilmadi",
+  "refunded": "To'lov muvaffaqiyatli qaytarildi",
+  "refund_failed": "To'lovni qaytarib bo'lmadi",
+  "already_paid": "Bu hisob-faktura allaqachon to'langan",
+  "insufficient_amount": "To'lov miqdori yetarli emas",
+  "discount_applied": "Chegirma muvaffaqiyatli qo'llandi",
+  "discount_not_found": "Chegirma kodi topilmadi",
+  "discount_expired": "Chegirma kodining muddati tugagan",
+  "discount_max_uses": "Chegirma kodi maksimal foydalanish soniga yetdi",
+  "invoice_generated": "Hisob-faktura muvaffaqiyatli yaratildi",
+  "stripe_intent_created": "To'lov niyati yaratildi",
+  "plan_created": "To'lov rejasi yaratildi",
+  "debt_calculated": "Qarz hisoblab chiqildi",
+  "overdue_updated": "Muddati o'tgan to'lovlar yangilandi"
+}

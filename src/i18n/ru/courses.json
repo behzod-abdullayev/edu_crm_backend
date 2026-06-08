@@ -1,0 +1,18 @@
+{
+  "created": "Курс успешно создан",
+  "updated": "Курс обновлён",
+  "deleted": "Курс удалён",
+  "not_found": "Курс не найден",
+  "module_created": "Модуль успешно создан",
+  "module_updated": "Модуль обновлён",
+  "module_deleted": "Модуль удалён",
+  "module_not_found": "Модуль курса не найден",
+  "lesson_created": "Урок успешно создан",
+  "lesson_updated": "Урок обновлён",
+  "lesson_deleted": "Урок удалён",
+  "lesson_not_found": "Урок не найден",
+  "published": "Курс опубликован",
+  "archived": "Курс архивирован",
+  "slug_taken": "Курс с таким slug уже существует",
+  "max_students_reached": "Курс достиг максимального количества студентов"
+}

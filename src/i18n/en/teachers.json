@@ -1,0 +1,11 @@
+{
+  "created": "Teacher created successfully",
+  "updated": "Teacher updated successfully",
+  "deleted": "Teacher deleted successfully",
+  "not_found": "Teacher not found",
+  "assigned": "Teacher assigned successfully",
+  "unassigned": "Teacher unassigned successfully",
+  "schedule_fetched": "Schedule fetched successfully",
+  "performance_fetched": "Performance data fetched successfully",
+  "already_assigned": "Teacher already assigned to this group"
+}

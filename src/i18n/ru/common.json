@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "not_found": "Запись не найдена",
+    "unauthorized": "Нет доступа",
+    "forbidden": "Доступ запрещён",
+    "validation": "Ошибка валидации",
+    "conflict": "Запись уже существует"
+  },
+  "success": {
+    "created": "Успешно создано",
+    "updated": "Успешно обновлено",
+    "deleted": "Успешно удалено"
+  },
+  "auth": {
+    "login_success": "Вход выполнен",
+    "logout_success": "Выход выполнен",
+    "invalid_credentials": "Неверный email или пароль",
+    "account_locked": "Аккаунт заблокирован. Попробуйте снова через {minutes} минут"
+  },
+  "payments": {
+    "payment_confirmed": "Платёж подтверждён",
+    "payment_overdue": "Платёж просрочен",
+    "refund_processed": "Возврат успешно обработан"
+  }
+}

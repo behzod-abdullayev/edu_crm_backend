@@ -1,0 +1,17 @@
+{
+  "not_found": "The requested resource was not found",
+  "unauthorized": "You are not authorized to perform this action",
+  "forbidden": "Access denied",
+  "validation_failed": "Validation failed. Please check your input.",
+  "conflict": "A record with this information already exists",
+  "internal_server": "An internal server error occurred. Please try again later.",
+  "bad_request": "Invalid request. Please check your input.",
+  "too_many_requests": "Too many requests. Please slow down.",
+  "file_too_large": "File size exceeds the maximum allowed limit",
+  "file_type_not_allowed": "This file type is not allowed",
+  "database_error": "A database error occurred",
+  "tenant_not_found": "Tenant not found or inactive",
+  "tenant_suspended": "Your tenant account has been suspended",
+  "feature_not_available": "This feature is not available in your current plan",
+  "maintenance_mode": "System is under maintenance. Please try again later."
+}

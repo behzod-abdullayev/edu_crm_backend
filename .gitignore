@@ -1,0 +1,45 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables (MUHIM!)
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Uploads (agar user file yuklasa)
+uploads/
+
+# Temporary files
+tmp/
+temp/
+
+# Coverage
+coverage/
+
+# Docker (optional)
+docker-data/
+
+# NestJS cache
+.cache/
+
+# TypeScript
+*.tsbuildinfo

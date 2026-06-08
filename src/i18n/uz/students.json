@@ -1,0 +1,13 @@
+{
+  "created": "Talaba muvaffaqiyatli yaratildi",
+  "updated": "Talaba ma'lumotlari yangilandi",
+  "deleted": "Talaba o'chirildi",
+  "not_found": "Talaba topilmadi",
+  "already_enrolled": "Talaba bu kursga allaqachon yozilgan",
+  "enrolled": "Talaba muvaffaqiyatli yozildi",
+  "unenrolled": "Talaba muvaffaqiyatli chiqarildi",
+  "code_generated": "Talaba kodi yaratildi",
+  "progress_fetched": "Talaba progressi olindi",
+  "invalid_status": "Noto'g'ri talaba holati",
+  "parent_notified": "Ota-ona muvaffaqiyatli xabardor qilindi"
+}

@@ -1,0 +1,18 @@
+{
+  "created": "Kurs muvaffaqiyatli yaratildi",
+  "updated": "Kurs yangilandi",
+  "deleted": "Kurs o'chirildi",
+  "not_found": "Kurs topilmadi",
+  "module_created": "Modul muvaffaqiyatli yaratildi",
+  "module_updated": "Modul yangilandi",
+  "module_deleted": "Modul o'chirildi",
+  "module_not_found": "Kurs moduli topilmadi",
+  "lesson_created": "Dars muvaffaqiyatli yaratildi",
+  "lesson_updated": "Dars yangilandi",
+  "lesson_deleted": "Dars o'chirildi",
+  "lesson_not_found": "Dars topilmadi",
+  "published": "Kurs nashr etildi",
+  "archived": "Kurs arxivlandi",
+  "slug_taken": "Bu slug bilan kurs allaqachon mavjud",
+  "max_students_reached": "Kurs talabalar sonining maksimal chegarasiga yetdi"
+}

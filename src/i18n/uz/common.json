@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "not_found": "Yozuv topilmadi",
+    "unauthorized": "Ruxsat yo'q",
+    "forbidden": "Kirish taqiqlangan",
+    "validation": "Tekshiruv xatosi",
+    "conflict": "Yozuv allaqachon mavjud"
+  },
+  "success": {
+    "created": "Muvaffaqiyatli yaratildi",
+    "updated": "Muvaffaqiyatli yangilandi",
+    "deleted": "Muvaffaqiyatli o'chirildi"
+  },
+  "auth": {
+    "login_success": "Kirish amalga oshirildi",
+    "logout_success": "Chiqish amalga oshirildi",
+    "invalid_credentials": "Email yoki parol noto'g'ri",
+    "account_locked": "Hisob bloklandi. {minutes} daqiqadan keyin qayta urinib ko'ring"
+  },
+  "payments": {
+    "payment_confirmed": "To'lov tasdiqlandi",
+    "payment_overdue": "To'lov muddati o'tdi",
+    "refund_processed": "Qaytarish muvaffaqiyatli amalga oshirildi"
+  }
+}

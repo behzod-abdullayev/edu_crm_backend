@@ -1,0 +1,17 @@
+{
+  "not_found": "So'ralgan resurs topilmadi",
+  "unauthorized": "Ushbu amalni bajarishga ruxsatingiz yo'q",
+  "forbidden": "Kirish taqiqlangan",
+  "validation_failed": "Tekshiruv xatosi. Iltimos, kiritilgan ma'lumotlarni tekshiring.",
+  "conflict": "Bu ma'lumotlar bilan yozuv allaqachon mavjud",
+  "internal_server": "Ichki server xatosi yuz berdi. Iltimos, keyinroq urinib ko'ring.",
+  "bad_request": "Noto'g'ri so'rov. Iltimos, kiritilgan ma'lumotlarni tekshiring.",
+  "too_many_requests": "Juda ko'p so'rovlar. Iltimos, sekinroq bajaring.",
+  "file_too_large": "Fayl hajmi maksimal ruxsat etilgan chegaradan oshib ketdi",
+  "file_type_not_allowed": "Bu fayl turi ruxsat etilmagan",
+  "database_error": "Ma'lumotlar bazasi xatosi yuz berdi",
+  "tenant_not_found": "Mijoz topilmadi yoki faol emas",
+  "tenant_suspended": "Sizning mijoz akkauntingiz to'xtatib qo'yilgan",
+  "feature_not_available": "Bu funksiya joriy tarifingizda mavjud emas",
+  "maintenance_mode": "Tizim texnik xizmat ko'rsatish rejimida. Keyinroq urinib ko'ring."
+}

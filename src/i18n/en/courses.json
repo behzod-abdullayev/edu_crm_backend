@@ -1,0 +1,18 @@
+{
+  "created": "Course created successfully",
+  "updated": "Course updated successfully",
+  "deleted": "Course deleted successfully",
+  "not_found": "Course not found",
+  "module_created": "Module created successfully",
+  "module_updated": "Module updated successfully",
+  "module_deleted": "Module deleted successfully",
+  "module_not_found": "Course module not found",
+  "lesson_created": "Lesson created successfully",
+  "lesson_updated": "Lesson updated successfully",
+  "lesson_deleted": "Lesson deleted successfully",
+  "lesson_not_found": "Lesson not found",
+  "published": "Course published successfully",
+  "archived": "Course archived successfully",
+  "slug_taken": "A course with this slug already exists",
+  "max_students_reached": "This course has reached its maximum student capacity"
+}

@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "notFound": "Resurs topilmadi",
+    "unauthorized": "Ruxsatsiz kirish",
+    "forbidden": "Kirish taqiqlangan",
+    "conflict": "Resurs allaqachon mavjud",
+    "badRequest": "Noto'g'ri so'rov ma'lumotlari",
+    "serverError": "Ichki server xatosi"
+  },
+  "success": {
+    "created": "Muvaffaqiyatli yaratildi",
+    "updated": "Muvaffaqiyatli yangilandi",
+    "deleted": "Muvaffaqiyatli o'chirildi"
+  }
+}

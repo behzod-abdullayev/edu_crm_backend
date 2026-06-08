@@ -1,0 +1,11 @@
+{
+  "created": "O'qituvchi muvaffaqiyatli yaratildi",
+  "updated": "O'qituvchi ma'lumotlari yangilandi",
+  "deleted": "O'qituvchi o'chirildi",
+  "not_found": "O'qituvchi topilmadi",
+  "assigned": "O'qituvchi muvaffaqiyatli tayinlandi",
+  "unassigned": "O'qituvchi tayinlovdan olib tashlandi",
+  "schedule_fetched": "Jadval olindi",
+  "performance_fetched": "Ishlash ma'lumotlari olindi",
+  "already_assigned": "O'qituvchi bu guruhga allaqachon tayinlangan"
+}

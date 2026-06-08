@@ -1,0 +1,19 @@
+{
+  "created": "Payment recorded successfully",
+  "updated": "Payment updated successfully",
+  "deleted": "Payment deleted successfully",
+  "not_found": "Payment not found",
+  "refunded": "Payment refunded successfully",
+  "refund_failed": "Payment refund failed",
+  "already_paid": "This invoice has already been paid",
+  "insufficient_amount": "Payment amount is insufficient",
+  "discount_applied": "Discount applied successfully",
+  "discount_not_found": "Discount code not found",
+  "discount_expired": "Discount code has expired",
+  "discount_max_uses": "Discount code has reached its maximum usage limit",
+  "invoice_generated": "Invoice generated successfully",
+  "stripe_intent_created": "Payment intent created successfully",
+  "plan_created": "Payment plan created successfully",
+  "debt_calculated": "Debt calculated successfully",
+  "overdue_updated": "Overdue payments updated"
+}

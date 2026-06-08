@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "not_found": "Record not found",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access forbidden",
+    "validation": "Validation failed",
+    "conflict": "Record already exists"
+  },
+  "success": {
+    "created": "Successfully created",
+    "updated": "Successfully updated",
+    "deleted": "Successfully deleted"
+  },
+  "auth": {
+    "login_success": "Login successful",
+    "logout_success": "Logout successful",
+    "invalid_credentials": "Invalid email or password",
+    "account_locked": "Account locked. Try again in {minutes} minutes"
+  },
+  "payments": {
+    "payment_confirmed": "Payment confirmed",
+    "payment_overdue": "Payment overdue",
+    "refund_processed": "Refund processed successfully"
+  }
+}

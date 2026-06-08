@@ -1,0 +1,13 @@
+{
+  "created": "Student created successfully",
+  "updated": "Student updated successfully",
+  "deleted": "Student deleted successfully",
+  "not_found": "Student not found",
+  "already_enrolled": "Student is already enrolled in this course",
+  "enrolled": "Student enrolled successfully",
+  "unenrolled": "Student unenrolled successfully",
+  "code_generated": "Student code generated",
+  "progress_fetched": "Student progress fetched successfully",
+  "invalid_status": "Invalid student status",
+  "parent_notified": "Parent notified successfully"
+}

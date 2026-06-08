@@ -1,0 +1,15 @@
+{
+  "errors": {
+    "notFound": "Resource not found",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access forbidden",
+    "conflict": "Resource already exists",
+    "badRequest": "Invalid request data",
+    "serverError": "Internal server error"
+  },
+  "success": {
+    "created": "Successfully created",
+    "updated": "Successfully updated",
+    "deleted": "Successfully deleted"
+  }
+}

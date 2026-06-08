@@ -1,0 +1,8 @@
+declare module 'mime-types' {
+  export function lookup(filenameOrExt: string): string | false;
+  export function contentType(type: string): string | false;
+  export function extension(type: string): string | false;
+  export function charset(type: string): string | false;
+  export const types: { [key: string]: string };
+  export const extensions: { [key: string]: string[] };
+}
