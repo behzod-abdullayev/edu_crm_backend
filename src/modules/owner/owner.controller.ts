@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Body, Query, Param, Res,
+  Controller, Get, Post, Patch, Delete, Body, Query, Param, Res,
   UseGuards, ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -132,6 +132,20 @@ export class OwnerController {
     @Body() dto: UpdateRolePermissionsDto,
   ): Promise<RoleResponseDto> {
     return this.ownerService.updateRolePermissions(id, tenantId, dto);
+  }
+
+  @Delete('roles/:id')
+  @Roles(UserRole.OWNER)
+  @ApiOperation({ summary: 'Delete a custom role' })
+  @ApiResponse({ status: 200, description: 'Role deleted successfully' })
+  @ApiResponse({ status: 403, description: 'System roles cannot be deleted' })
+  @ApiResponse({ status: 404, description: 'Role not found' })
+  @ApiResponse({ status: 409, description: 'Role is still assigned to users' })
+  deleteRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+  ): Promise<{ message: string }> {
+    return this.ownerService.deleteRole(tenantId, id);
   }
 
   @Post('users/:id/role')

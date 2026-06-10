@@ -1073,6 +1073,25 @@ export class OwnerService {
     };
   }
 
+  async deleteRole(tenantId: string, roleId: string): Promise<{ message: string }> {
+    const role = await this.rolesService.findOne(roleId, tenantId);
+    if (role.isSystem) {
+      throw new ForbiddenException('System roles cannot be deleted');
+    }
+    const countResult = await this.dataSource.query(
+      `SELECT COUNT(*) FROM users WHERE tenant_id = $1 AND custom_role_id = $2 AND deleted_at IS NULL`,
+      [tenantId, roleId],
+    ) as CountRow[];
+    const userCount = parseInt(countResult[0]?.count ?? '0', 10);
+    if (userCount > 0) {
+      throw new ConflictException(
+        `Cannot delete role: it is assigned to ${userCount} user(s). Reassign them to another role first.`,
+      );
+    }
+    await this.rolesService.remove(roleId, tenantId);
+    return { message: 'Role deleted successfully' };
+  }
+
   async updateRolePermissions(
     roleId: string,
     tenantId: string,

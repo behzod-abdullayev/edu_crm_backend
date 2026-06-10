@@ -74,6 +74,9 @@ export class RolesService {
 
   async remove(id: string, tenantId: string): Promise<void> {
     const role = await this.findOne(id, tenantId);
+    if (role.isSystem) {
+      throw new ForbiddenException('System roles cannot be deleted');
+    }
     await this.rolesRepository.remove(role);
   }
 
