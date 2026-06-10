@@ -36,6 +36,7 @@ import { FilesModule } from './modules/files/files.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { OwnerModule } from './modules/owner/owner.module';
+import { SearchModule } from './modules/search/search.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -156,6 +157,7 @@ import { MailModule } from './mail/mail.module';
     ChatModule,
     AdminModule,
     OwnerModule,
+    SearchModule,
     SchedulerModule,
   ],
 })
