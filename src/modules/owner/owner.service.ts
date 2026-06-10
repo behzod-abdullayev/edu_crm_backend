@@ -190,7 +190,7 @@ export class OwnerService {
   ) {}
 
   async getUserManagement(tenantId: string, filters: UserManagementFilterDto): Promise<PaginatedResult<UserRow>> {
-    const { search, role, status, page = 1, limit = 20, sortBy, order } = filters;
+    const { search, role, status, branch, page = 1, limit = 20, sortBy, order } = filters;
 
     // BUG FIX: countQuery ham xuddi main query kabi filterlarni qo'llashi kerak.
     // Avvalgi versiyada countQuery faqat tenant_id tekshirardi (search/role/status yo'q).
@@ -220,6 +220,10 @@ export class OwnerService {
     if (status) {
       whereConditions.push(`u.status = $${filterParams.length + 1}`);
       filterParams.push(status);
+    }
+    if (branch) {
+      whereConditions.push(`u.branch = $${filterParams.length + 1}`);
+      filterParams.push(branch);
     }
 
     const whereClause = whereConditions.join(' AND ');
