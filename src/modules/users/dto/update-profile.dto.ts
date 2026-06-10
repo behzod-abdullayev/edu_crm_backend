@@ -13,4 +13,5 @@ export class UpdateProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() country?: string;
   @ApiPropertyOptional({ enum: Language }) @IsOptional() @IsEnum(Language) language?: Language;
   @ApiPropertyOptional() @IsOptional() @IsString() timezone?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() avatarUrl?: string;
 }

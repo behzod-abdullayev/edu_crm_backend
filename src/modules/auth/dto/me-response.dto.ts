@@ -41,4 +41,7 @@ export class MeResponseDto {
     example: ['student.view', 'course.view', 'payment.manage'],
   })
   permissions: string[];
+
+  @ApiProperty({ description: 'Account creation timestamp' })
+  createdAt: Date;
 }

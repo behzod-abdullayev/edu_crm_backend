@@ -143,6 +143,7 @@ export class AuthController {
       preferredLanguage: user.language ?? 'uz',
       twoFactorEnabled: user.twoFaEnabled ?? false,
       permissions: getPermissionsForRole(user.role),
+      createdAt: user.createdAt,
     };
   }
 

@@ -35,6 +35,7 @@ import { RoleResponseDto } from './dto/role-response.dto';
 import { OwnerCreateRoleDto } from './dto/create-role.dto';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 import { OwnerAssignRoleDto } from './dto/assign-role.dto';
+import { OwnerInviteUserDto } from './dto/invite-user.dto';
 
 @ApiTags('Owner')
 @ApiBearerAuth('JWT')
@@ -146,6 +147,15 @@ export class OwnerController {
     @Body() dto: OwnerAssignRoleDto,
   ) {
     return this.ownerService.assignUserRole(id, tenantId, dto);
+  }
+
+  @Post('users/invite')
+  @Roles(UserRole.OWNER)
+  @ApiOperation({ summary: 'Invite a new user (creates a pending account)' })
+  @ApiResponse({ status: 201, description: 'User invited' })
+  @ApiResponse({ status: 409, description: 'User with this email already exists' })
+  inviteUser(@TenantId() tenantId: string, @Body() dto: OwnerInviteUserDto) {
+    return this.ownerService.inviteUser(tenantId, dto);
   }
 
   @Get('system/config')

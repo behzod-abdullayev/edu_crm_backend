@@ -176,6 +176,7 @@ export class AuthService {
       preferredLanguage: user.language ?? 'uz',
       twoFactorEnabled: user.twoFaEnabled ?? false,
       permissions: getPermissionsForRole(user.role),
+      createdAt: user.createdAt,
     };
 
     return {
@@ -249,6 +250,7 @@ export class AuthService {
         preferredLanguage: user.language ?? 'uz',
         twoFactorEnabled: user.twoFaEnabled ?? false,
         permissions: getPermissionsForRole(user.role),
+        createdAt: user.createdAt,
       };
 
       return {

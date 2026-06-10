@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as ExcelJS from 'exceljs';
+import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { UserManagementFilterDto } from './dto/user-management.dto';
+import { OwnerInviteUserDto } from './dto/invite-user.dto';
 import { HrOperationDto } from './dto/hr-operation.dto';
 import { SystemConfigDto } from './dto/system-config.dto';
 import { ManageBranchDto } from './dto/manage-branch.dto';
@@ -116,7 +119,7 @@ export class OwnerService {
   ) {}
 
   async getUserManagement(tenantId: string, filters: UserManagementFilterDto): Promise<PaginatedResult<UserRow>> {
-    const { search, role, status, page = 1, limit = 20 } = filters;
+    const { search, role, status, page = 1, limit = 20, sortBy, order } = filters;
 
     // BUG FIX: countQuery ham xuddi main query kabi filterlarni qo'llashi kerak.
     // Avvalgi versiyada countQuery faqat tenant_id tekshirardi (search/role/status yo'q).
@@ -155,6 +158,22 @@ export class OwnerService {
     const countResult = await this.dataSource.query(countQuery, filterParams) as CountRow[];
     const total = parseInt(countResult[0]?.count || '0', 10);
 
+    // ── ORDER BY (sortBy/order) ────────────────────────────────────────────────
+    // FIX: frontend DataTable orqali yuboriladigan sortBy/order endi qo'llab-quvvatlanadi.
+    // Raw SQL bo'lgani uchun sortBy ustun nomi allowlist orqali tekshiriladi (SQL injection oldini olish).
+    const SORTABLE_COLUMNS: Record<string, string> = {
+      createdAt: 'u.created_at',
+      name:      'u."firstName"',
+      firstName: 'u."firstName"',
+      lastName:  'u."lastName"',
+      email:     'u.email',
+      role:      'u.role',
+      status:    'u.status',
+      lastLogin: 'u.last_login_at',
+    };
+    const orderColumn = SORTABLE_COLUMNS[sortBy ?? ''] ?? 'u.created_at';
+    const orderDirection = order === 'ASC' ? 'ASC' : 'DESC';
+
     // ── DATA query (with pagination on top of filters) ────────────────────────
     const dataParams: (string | number)[] = [...filterParams, limit, (page - 1) * limit];
     const dataQuery = `
@@ -162,7 +181,7 @@ export class OwnerService {
              u.last_login_at, u.created_at, u.branch, u.metadata
       FROM users u
       WHERE ${whereClause}
-      ORDER BY u.created_at DESC
+      ORDER BY ${orderColumn} ${orderDirection}
       LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}
     `;
     const users = await this.dataSource.query(dataQuery, dataParams) as UserRow[];
@@ -618,16 +637,61 @@ export class OwnerService {
 
   async assignUserRole(userId: string, tenantId: string, dto: OwnerAssignRoleDto): Promise<{ message: string; userId: string; role: UserRole }> {
     const userRows = await this.dataSource.query(
-      `SELECT id FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      `SELECT id, role FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
       [userId, tenantId],
-    ) as Array<{ id: string }>;
+    ) as Array<{ id: string; role: UserRole }>;
     if (!userRows.length) throw new NotFoundException(`User ${userId} not found`);
+
+    // Super Admin is a platform-level role above tenant Owner — an Owner must
+    // not be able to demote/modify a Super Admin's account or grant the
+    // Super Admin role to anyone (privilege escalation).
+    if (userRows[0].role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Cannot change the role of a Super Admin');
+    }
+    if (dto.role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Cannot assign the Super Admin role');
+    }
+
     await this.dataSource.query(
       `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
       [dto.role, userId, tenantId],
     );
     this.eventEmitter.emit('audit.action', { tenantId, action: 'role_change', entityId: userId, newValue: { role: dto.role } });
     return { message: 'User role updated', userId, role: dto.role };
+  }
+
+  // Used by Owner > Users > "Invite" dialog (POST /owner/users/invite).
+  // Creates a pending user with a random temporary password — no email
+  // delivery system exists yet, so the temp password is emitted via
+  // 'user.invited' event for downstream notification handlers (if any).
+  async inviteUser(tenantId: string, dto: OwnerInviteUserDto): Promise<{ message: string; userId: string; email: string; role: UserRole }> {
+    // Owner cannot create platform-level Super Admin accounts.
+    if (dto.role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Cannot invite a user with the Super Admin role');
+    }
+
+    const existing = await this.dataSource.query(
+      `SELECT id FROM users WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [dto.email, tenantId],
+    ) as Array<{ id: string }>;
+    if (existing.length) throw new ConflictException('User with this email already exists in this tenant');
+
+    const userId = uuidv4();
+    const tempPassword = crypto.randomBytes(12).toString('hex');
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
+    const firstName = dto.firstName?.trim() || dto.email.split('@')[0] || 'New';
+    const lastName = dto.lastName?.trim() || '';
+
+    await this.dataSource.query(
+      `INSERT INTO users (id, tenant_id, "firstName", "lastName", email, password, role, status, is_email_verified, metadata, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+      [userId, tenantId, firstName, lastName, dto.email, hashedPassword, dto.role, UserStatus.PENDING, false, JSON.stringify({})],
+    );
+
+    this.eventEmitter.emit('user.invited', { tenantId, userId, email: dto.email, role: dto.role, tempPassword });
+    this.eventEmitter.emit('audit.action', { tenantId, action: 'user_invited', entityId: userId, newValue: { email: dto.email, role: dto.role } });
+
+    return { message: 'User invited successfully', userId, email: dto.email, role: dto.role };
   }
 
   async getSystemConfig(tenantId: string): Promise<TenantRow> {
@@ -698,6 +762,15 @@ export class OwnerService {
          WHERE a.tenant_id = $1
          ORDER BY a.date DESC
          LIMIT 1000`,
+        [tenantId],
+      ) as ExportStudentRow[];
+    } else if (type === 'users') {
+      // Owner > Users > Export button (GET /owner/export/users)
+      rows = await this.dataSource.query(
+        `SELECT u."firstName", u."lastName", u.email, u.phone, u.role, u.status, u.branch, u.last_login_at, u.created_at
+         FROM users u
+         WHERE u.tenant_id = $1 AND u.deleted_at IS NULL
+         ORDER BY u.created_at DESC`,
         [tenantId],
       ) as ExportStudentRow[];
     }
