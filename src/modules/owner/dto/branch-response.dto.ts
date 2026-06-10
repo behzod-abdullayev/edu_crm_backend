@@ -44,6 +44,15 @@ export class BranchResponseDto {
   @ApiProperty({ description: 'Number of teachers working in this branch', example: 8 })
   teacherCount: number;
 
+  @ApiProperty({ description: 'Number of courses taught by this branch\'s teachers', example: 5 })
+  courseCount: number;
+
+  @ApiProperty({ description: 'Revenue from paid payments this calendar month, attributed to this branch', example: 4500000 })
+  monthlyRevenue: number;
+
+  @ApiProperty({ description: 'Tenant base currency code (e.g. UZS, USD)', example: 'UZS' })
+  currency: string;
+
   @ApiProperty({ description: 'Branch creation date' })
   createdAt: Date;
 }

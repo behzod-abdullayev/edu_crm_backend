@@ -22,11 +22,13 @@ export async function seedUsers(dataSource: DataSource, tenantId: string): Promi
       [u.email, tenantId],
     ) as { id: string }[];
 
-    if (!existing.length) {
+    let userId = existing[0]?.id;
+
+    if (!userId) {
       // TypeORM synchronize:true created "firstName" and "lastName" columns (camelCase).
       // Use quoted identifiers to match the actual PostgreSQL column names.
       // The `password` column was also created by TypeORM (not `password_hash`).
-      await dataSource.query(
+      const inserted = await dataSource.query(
         `INSERT INTO users (
           tenant_id,
           "firstName",
@@ -39,9 +41,34 @@ export async function seedUsers(dataSource: DataSource, tenantId: string): Promi
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, 'active', 0, NOW(), NOW())`,
+        VALUES ($1, $2, $3, $4, $5, $6, 'active', 0, NOW(), NOW())
+        RETURNING id`,
         [tenantId, u.firstName, u.lastName, u.email, passwordHash, u.role],
-      );
+      ) as { id: string }[];
+      userId = inserted[0]?.id;
+    }
+
+    // OBS-08: a `users` row with role='student' must always have a matching
+    // `students` row — every owner-panel aggregation reads from `students`.
+    if (u.role === 'student' && userId) {
+      const existingStudent = await dataSource.query(
+        `SELECT id FROM students WHERE user_id = $1`,
+        [userId],
+      ) as { id: string }[];
+
+      if (!existingStudent.length) {
+        const countRow = await dataSource.query(
+          `SELECT COUNT(*) FROM students WHERE tenant_id = $1`,
+          [tenantId],
+        ) as { count: string }[];
+        const studentCode = `STU-${String(parseInt(countRow[0]?.count ?? '0', 10) + 1).padStart(5, '0')}`;
+
+        await dataSource.query(
+          `INSERT INTO students (user_id, tenant_id, student_code, enrollment_date, created_at, updated_at)
+           VALUES ($1, $2, $3, CURRENT_DATE, NOW(), NOW())`,
+          [userId, tenantId, studentCode],
+        );
+      }
     }
   }
   console.log('Users seeded successfully');

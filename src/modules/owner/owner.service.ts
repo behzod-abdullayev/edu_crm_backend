@@ -14,6 +14,7 @@ import { UserRole, UserStatus, Permission } from '../../shared/enums';
 import { BranchResponseDto } from './dto/branch-response.dto';
 import {
   GlobalAnalyticsDto, RevenueByMonthDto, StudentGrowthDto, TopCourseDto,
+  BranchComparisonDto, UserGrowthPointDto,
 } from './dto/global-analytics.dto';
 import { RoleResponseDto } from './dto/role-response.dto';
 import { OwnerCreateRoleDto } from './dto/create-role.dto';
@@ -97,6 +98,9 @@ interface TenantCurrencyRow { currency: string; branches: BranchDto[] | null | s
 interface AmountTotalRow { total: string; }
 interface BranchIncomeRow { branch: string | null; income: string; }
 interface BranchExpenseRow { branch: string | null; expenses: string; }
+interface BranchStudentCountRow { branch: string | null; count: string; }
+interface BranchRevenueRow { branch: string | null; revenue: string; }
+interface BranchAttendanceRow { branch: string | null; total: string; present: string; }
 interface CourseFinanceRow { id: string; title: string; currency: string; teacherId: string | null; income: string; }
 interface TeacherSalaryRow { id: string; salary: string | null; }
 interface StudentFinanceRow {
@@ -164,6 +168,17 @@ function parseBranchesJson(raw: BranchDto[] | null | string | undefined): Branch
     }
   }
   return [];
+}
+
+// Helper: users.branch / students.branch ko'pincha NULL bo'ladi (filial
+// tayinlash UI orqali saqlanmagan). HR paneli bilan bir xil mantiq:
+// NULL filial — tenant.branches ichidagi isMain:true filialga tegishli deb
+// hisoblanadi (yo'q bo'lsa — birinchi filial, hech qanday filial bo'lmasa
+// 'Unassigned').
+function buildBranchResolver(branches: BranchDto[]): (branch: string | null) => string {
+  const mainBranch = branches.find((b) => b.isMain === true) ?? branches[0];
+  const fallbackName = typeof mainBranch?.name === 'string' ? mainBranch.name : null;
+  return (branch: string | null) => branch ?? fallbackName ?? 'Unassigned';
 }
 
 @Injectable()
@@ -626,12 +641,7 @@ export class OwnerService {
     // NULL filial — tenant.branches ichidagi isMain:true filialga tegishli
     // deb hisoblanadi (yo'q bo'lsa — birinchi filial).
     const tenantBranchList = parseBranchesJson(tenantRows[0]?.branches);
-    const mainBranch =
-      tenantBranchList.find((b) => b.isMain === true) ?? tenantBranchList[0];
-    const fallbackBranchName =
-      typeof mainBranch?.name === 'string' ? mainBranch.name : null;
-    const resolveBranchName = (branch: string | null): string =>
-      branch ?? fallbackBranchName ?? 'Unassigned';
+    const resolveBranchName = buildBranchResolver(tenantBranchList);
 
     const branchMap = new Map<string, { revenue: number; expenses: number }>();
     for (const b of tenantBranchList) {
@@ -754,61 +764,152 @@ export class OwnerService {
   }
 
   async getBranches(tenantId: string): Promise<BranchResponseDto[]> {
-    const tenant = await this.dataSource.query(
-      `SELECT branches FROM tenants WHERE id = $1`,
-      [tenantId],
-    ) as BranchRow[];
-    if (!tenant.length) throw new NotFoundException('Tenant not found');
+    const [tenantRows, branchStudentRows, branchTeacherRows, branchCourseRows, branchRevenueRows] =
+      await Promise.all([
+        this.dataSource.query(
+          `SELECT currency, branches FROM tenants WHERE id = $1`,
+          [tenantId],
+        ) as Promise<TenantCurrencyRow[]>,
+
+        // OBS-08 FIX: students.branch ko'pincha NULL — buildBranchResolver orqali
+        // NULL filial isMain:true filialga (yoki birinchi filialga) qo'shiladi.
+        this.dataSource.query(
+          `SELECT branch, COUNT(*) as count FROM students
+           WHERE tenant_id = $1 AND deleted_at IS NULL
+           GROUP BY branch`,
+          [tenantId],
+        ) as Promise<BranchStudentCountRow[]>,
+
+        this.dataSource.query(
+          `SELECT branch, COUNT(*) as count FROM teachers
+           WHERE tenant_id = $1 AND deleted_at IS NULL
+           GROUP BY branch`,
+          [tenantId],
+        ) as Promise<BranchStudentCountRow[]>,
+
+        // Kurslar branch ustuniga ega emas — o'qituvchisi orqali filialga bog'lanadi
+        this.dataSource.query(
+          `SELECT t.branch as branch, COUNT(*) as count
+           FROM courses c
+           LEFT JOIN teachers t ON t.id = c.teacher_id AND t.deleted_at IS NULL
+           WHERE c.tenant_id = $1 AND c.deleted_at IS NULL
+           GROUP BY t.branch`,
+          [tenantId],
+        ) as Promise<BranchStudentCountRow[]>,
+
+        // Joriy oy uchun filial bo'yicha daromad (talaba filiali orqali)
+        this.dataSource.query(
+          `SELECT s.branch as branch, COALESCE(SUM(p.total_amount), 0) as revenue
+           FROM payments p
+           JOIN students s ON s.id = p.student_id
+           WHERE p.tenant_id = $1 AND p.status = 'paid'
+             AND p.paid_at >= date_trunc('month', CURRENT_DATE)
+           GROUP BY s.branch`,
+          [tenantId],
+        ) as Promise<BranchRevenueRow[]>,
+      ]);
+
+    if (!tenantRows.length) throw new NotFoundException('Tenant not found');
 
     // FIX: JSONB string sifatida kelishi mumkin → parseBranchesJson ishlatish
-    const rawBranches: BranchDto[] = parseBranchesJson(tenant[0].branches);
+    const rawBranches: BranchDto[] = parseBranchesJson(tenantRows[0]?.branches);
 
     // Agar branch yo'q bo'lsa - bo'sh array qaytariladi (500 emas)
     if (rawBranches.length === 0) {
       return [];
     }
 
-    return Promise.all(
-      rawBranches.map(async (b) => {
-        const branchName = (b['name'] as string | undefined) ?? b.id;
+    const currency = tenantRows[0]?.currency || 'UZS';
+    const resolveBranchName = buildBranchResolver(rawBranches);
 
-        const [countResult, teacherCountResult] = await Promise.all([
-          this.dataSource.query(
-            `SELECT COUNT(*) FROM students WHERE tenant_id = $1 AND branch = $2 AND deleted_at IS NULL`,
-            [tenantId, branchName],
-          ) as Promise<CountRow[]>,
-          this.dataSource.query(
-            `SELECT COUNT(*) FROM teachers WHERE tenant_id = $1 AND branch = $2 AND deleted_at IS NULL`,
-            [tenantId, branchName],
-          ) as Promise<CountRow[]>,
-        ]);
+    const studentCounts = new Map<string, number>();
+    for (const row of branchStudentRows) {
+      const name = resolveBranchName(row.branch);
+      studentCounts.set(name, (studentCounts.get(name) ?? 0) + parseInt(row.count, 10));
+    }
+    const teacherCounts = new Map<string, number>();
+    for (const row of branchTeacherRows) {
+      const name = resolveBranchName(row.branch);
+      teacherCounts.set(name, (teacherCounts.get(name) ?? 0) + parseInt(row.count, 10));
+    }
+    const courseCounts = new Map<string, number>();
+    for (const row of branchCourseRows) {
+      const name = resolveBranchName(row.branch);
+      courseCounts.set(name, (courseCounts.get(name) ?? 0) + parseInt(row.count, 10));
+    }
+    const revenueTotals = new Map<string, number>();
+    for (const row of branchRevenueRows) {
+      const name = resolveBranchName(row.branch);
+      revenueTotals.set(name, (revenueTotals.get(name) ?? 0) + parseFloat(row.revenue));
+    }
 
-        return {
-          id: b.id,
-          name: (b['name'] as string) ?? '',
-          address: (b['address'] as string) ?? null,
-          phone: (b['phone'] as string) ?? null,
-          managerId: (b['managerId'] as string) ?? null,
-          managerName: (b['managerName'] as string) ?? null,
-          studentCount: parseInt(countResult[0]?.count ?? '0', 10),
-          teacherCount: parseInt(teacherCountResult[0]?.count ?? '0', 10),
-          isActive: (b['isActive'] as boolean) ?? true,
-          createdAt: (b['createdAt'] as Date) ?? new Date(),
-        };
-      }),
-    );
+    return rawBranches.map((b) => {
+      const branchName = (b['name'] as string | undefined) ?? b.id;
+
+      return {
+        id: b.id,
+        name: (b['name'] as string) ?? '',
+        address: (b['address'] as string) ?? null,
+        phone: (b['phone'] as string) ?? null,
+        managerId: (b['managerId'] as string) ?? null,
+        managerName: (b['managerName'] as string) ?? null,
+        studentCount: studentCounts.get(branchName) ?? 0,
+        teacherCount: teacherCounts.get(branchName) ?? 0,
+        courseCount: courseCounts.get(branchName) ?? 0,
+        monthlyRevenue: revenueTotals.get(branchName) ?? 0,
+        currency,
+        isActive: (b['isActive'] as boolean) ?? true,
+        createdAt: (b['createdAt'] as Date) ?? new Date(),
+      };
+    });
   }
 
   async getGlobalAnalytics(tenantId: string): Promise<GlobalAnalyticsDto> {
-    const [studentsRow, teachersRow, coursesRow, activeGroupsRow] = await Promise.all([
+    const [
+      studentsRow, teachersRow, coursesRow, activeGroupsRow, tenantRows,
+      branchStudentRows, branchRevenueRows, branchAttendanceRows,
+    ] = await Promise.all([
       this.dataSource.query(`SELECT COUNT(*) FROM students WHERE tenant_id = $1 AND deleted_at IS NULL`, [tenantId]) as Promise<CountRow[]>,
       this.dataSource.query(`SELECT COUNT(*) FROM teachers WHERE tenant_id = $1 AND deleted_at IS NULL`, [tenantId]) as Promise<CountRow[]>,
       this.dataSource.query(`SELECT COUNT(*) FROM courses WHERE tenant_id = $1 AND deleted_at IS NULL`, [tenantId]) as Promise<CountRow[]>,
       this.dataSource.query(`SELECT COUNT(*) FROM groups WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL`, [tenantId]) as Promise<CountRow[]>,
+
+      // BUG #6 FIX: filial bo'yicha taqqoslash uchun tenant.branches kerak
+      this.dataSource.query(`SELECT branches FROM tenants WHERE id = $1`, [tenantId]) as Promise<BranchRow[]>,
+
+      // BUG #6 FIX: filial bo'yicha o'quvchilar soni
+      this.dataSource.query(
+        `SELECT branch as branch, COUNT(*) as count FROM students
+         WHERE tenant_id = $1 AND deleted_at IS NULL
+         GROUP BY branch`,
+        [tenantId],
+      ) as Promise<BranchStudentCountRow[]>,
+
+      // BUG #6 FIX: filial bo'yicha daromad (to'langan to'lovlar, talaba filiali bo'yicha)
+      this.dataSource.query(
+        `SELECT s.branch as branch, COALESCE(SUM(p.total_amount), 0) as revenue
+         FROM payments p
+         JOIN students s ON s.id = p.student_id
+         WHERE p.tenant_id = $1 AND p.status = 'paid'
+         GROUP BY s.branch`,
+        [tenantId],
+      ) as Promise<BranchRevenueRow[]>,
+
+      // BUG #6 FIX: filial bo'yicha davomat foizi
+      this.dataSource.query(
+        `SELECT s.branch as branch, COUNT(*) as total,
+                SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present
+         FROM attendance a
+         JOIN students s ON s.id = a.student_id
+         WHERE a.tenant_id = $1
+         GROUP BY s.branch`,
+        [tenantId],
+      ) as Promise<BranchAttendanceRow[]>,
     ]);
 
     const revenueByMonth: RevenueByMonthDto[] = [];
     const studentGrowth: StudentGrowthDto[] = [];
+    const userGrowth: UserGrowthPointDto[] = [];
 
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
@@ -829,9 +930,59 @@ export class OwnerService {
         [tenantId, monthStart, monthEnd],
       ) as MonthlyCountRow[];
       studentGrowth.push({ month: monthKey, count: parseInt(growth[0]?.count ?? '0', 10) });
+
+      // BUG #6 FIX: userGrowth — har oyda qo'shilgan o'quvchi va o'qituvchilar soni
+      const teacherGrowth = await this.dataSource.query(
+        `SELECT COUNT(*) as count FROM teachers WHERE tenant_id = $1 AND created_at BETWEEN $2 AND $3 AND deleted_at IS NULL`,
+        [tenantId, monthStart, monthEnd],
+      ) as MonthlyCountRow[];
+      userGrowth.push({
+        month: monthKey,
+        students: parseInt(growth[0]?.count ?? '0', 10),
+        teachers: parseInt(teacherGrowth[0]?.count ?? '0', 10),
+      });
     }
 
     const totalRevenue = revenueByMonth.reduce((s, m) => s + m.amount, 0);
+
+    // ── BUG #6 FIX: Branch comparison — filiallar bo'yicha o'quvchilar soni,
+    // daromad va davomat foizini taqqoslash (avval har doim bo'sh massiv edi,
+    // frontend "Branch A/B/C" hardcoded mock bilan to'ldirardi)
+    const tenantBranchList = parseBranchesJson(tenantRows[0]?.branches);
+    const resolveBranchName = buildBranchResolver(tenantBranchList);
+
+    const branchComparisonMap = new Map<string, { students: number; revenue: number; attTotal: number; attPresent: number }>();
+    for (const b of tenantBranchList) {
+      const name = typeof b.name === 'string' ? b.name : 'Unassigned';
+      branchComparisonMap.set(name, { students: 0, revenue: 0, attTotal: 0, attPresent: 0 });
+    }
+    for (const row of branchStudentRows) {
+      const name = resolveBranchName(row.branch);
+      const entry = branchComparisonMap.get(name) ?? { students: 0, revenue: 0, attTotal: 0, attPresent: 0 };
+      entry.students += parseInt(row.count, 10) || 0;
+      branchComparisonMap.set(name, entry);
+    }
+    for (const row of branchRevenueRows) {
+      const name = resolveBranchName(row.branch);
+      const entry = branchComparisonMap.get(name) ?? { students: 0, revenue: 0, attTotal: 0, attPresent: 0 };
+      entry.revenue += parseFloat(row.revenue) || 0;
+      branchComparisonMap.set(name, entry);
+    }
+    for (const row of branchAttendanceRows) {
+      const name = resolveBranchName(row.branch);
+      const entry = branchComparisonMap.get(name) ?? { students: 0, revenue: 0, attTotal: 0, attPresent: 0 };
+      entry.attTotal += parseInt(row.total, 10) || 0;
+      entry.attPresent += parseInt(row.present ?? '0', 10) || 0;
+      branchComparisonMap.set(name, entry);
+    }
+    const branchComparison: BranchComparisonDto[] = Array.from(branchComparisonMap.entries()).map(
+      ([branchName, v]) => ({
+        branchName,
+        students: v.students,
+        revenue: v.revenue,
+        attendanceRate: v.attTotal > 0 ? Math.round((v.attPresent / v.attTotal) * 100 * 10) / 10 : 0,
+      }),
+    );
 
     const topCourseRaw = await this.dataSource.query(
       `SELECT e.course_id as courseId, c.title as name, COUNT(e.id) as enrollmentCount,
@@ -872,8 +1023,8 @@ export class OwnerService {
       revenueByMonth,
       studentGrowth,
       topCourses,
-      branchComparison: [],
-      userGrowth: [],
+      branchComparison,
+      userGrowth,
     };
   }
 
