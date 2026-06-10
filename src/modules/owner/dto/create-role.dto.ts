@@ -12,8 +12,9 @@ export class OwnerCreateRoleDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ type: [String], description: 'List of permission strings' })
+  @ApiProperty({ type: [String], description: 'List of permission strings', required: false })
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  permissions: string[];
+  permissions?: string[];
 }

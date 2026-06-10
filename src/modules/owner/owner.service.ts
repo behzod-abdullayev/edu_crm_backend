@@ -1049,8 +1049,14 @@ export class OwnerService {
   }
 
   async createRole(tenantId: string, dto: OwnerCreateRoleDto): Promise<RoleResponseDto> {
+    // OBS-13: a custom role can be created with no permissions assigned yet —
+    // the owner toggles them on afterwards in the permission matrix.
     const role = await this.rolesService.create(
-      { name: dto.name, description: dto.description, permissions: dto.permissions as unknown as Permission[] },
+      {
+        name: dto.name,
+        description: dto.description,
+        permissions: (dto.permissions ?? []) as unknown as Permission[],
+      },
       tenantId,
     );
     return {
