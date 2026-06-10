@@ -24,7 +24,12 @@ async function bootstrap() {
   app.useLogger(logger);
 
   // Security & Performance
-  app.use(helmet());
+  // FIX: helmet's default `Cross-Origin-Resource-Policy: same-origin` blocks
+  // the browser from rendering resources (avatars, certificates, etc. served
+  // from /uploads) when embedded by the frontend on a different origin/port
+  // (localhost:3000 -> localhost:4001). Relax to 'cross-origin' so uploaded
+  // files can be loaded by the frontend.
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(compression());
 
   // Body parsers
@@ -91,7 +96,14 @@ async function bootstrap() {
   );
 
   // Static files
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+  // FIX: `__dirname` points to `dist/src` at runtime (compiled output), so
+  // `join(__dirname, '..', 'uploads')` resolved to `dist/uploads` — a
+  // directory that never gets written to. FilesService saves uploads to
+  // `UPLOAD_DIR` (default './uploads') resolved against `process.cwd()`,
+  // so the static root must use the same base for uploaded files
+  // (e.g. avatars) to actually be servable at /uploads/...
+  const uploadDir = configService.get<string>('UPLOAD_DIR', './uploads');
+  app.useStaticAssets(join(process.cwd(), uploadDir), { prefix: '/uploads' });
 
   // Swagger — always enabled so orval can fetch the schema in any environment
   const swaggerConfig = new DocumentBuilder()

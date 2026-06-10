@@ -106,4 +106,9 @@ export class Tenant extends AbstractEntity {
 
   @Column({ type: 'simple-array', name: 'branches', default: [] })
   branches: string[];
+
+  // Unified base currency for the tenant (e.g. 'UZS', 'USD'). Used across
+  // HR payroll and the Finance module so figures are displayed consistently.
+  @Column({ length: 10, default: 'UZS' })
+  currency: string;
 }

@@ -92,6 +92,62 @@ interface MonthlyAttRow { total: string; present: string; }
 interface TopCourseRow { courseid: string; name: string; enrollmentcount: string; revenue: string; }
 interface PrevMonthRevenueRow { total: string; }
 
+// ── Financial analytics row shapes ─────────────────────────────────────────
+interface TenantCurrencyRow { currency: string; branches: BranchDto[] | null | string; }
+interface AmountTotalRow { total: string; }
+interface BranchIncomeRow { branch: string | null; income: string; }
+interface BranchExpenseRow { branch: string | null; expenses: string; }
+interface CourseFinanceRow { id: string; title: string; currency: string; teacherId: string | null; income: string; }
+interface TeacherSalaryRow { id: string; salary: string | null; }
+interface StudentFinanceRow {
+  studentId: string; firstName: string; lastName: string; branch: string | null;
+  inflow: string; outflow: string;
+}
+
+export interface FinancialBranchBreakdown {
+  branchName: string;
+  revenue: number;
+  expenses: number;
+  netProfit: number;
+}
+
+export interface FinancialCourseBreakdown {
+  courseId: string;
+  courseName: string;
+  income: number;
+  expenses: number;
+  netProfit: number;
+  currency: string;
+}
+
+export interface FinancialStudentBreakdown {
+  studentId: string;
+  studentName: string;
+  branch: string | null;
+  inflow: number;
+  outflow: number;
+  netProfit: number;
+  currency: string;
+}
+
+export interface FinancialOverviewResult {
+  currency: string;
+  mrr: number;
+  arr: number;
+  totalIncome: number;
+  totalExpenses: number;
+  netProfit: number;
+  totalPaid: number;
+  totalOutstanding: number;
+  overdueTotal: number;
+  revenueTimeline: RevenueTimelineRow[];
+  revenueByBranch: FinancialBranchBreakdown[];
+  paymentMethodBreakdown: { method: string; amount: number; percent: number }[];
+  topStudents: { studentId: string; studentName: string; totalPaid: number; currency: string }[];
+  courseBreakdown: FinancialCourseBreakdown[];
+  studentBreakdown: FinancialStudentBreakdown[];
+}
+
 export interface BranchDto { id: string; [key: string]: unknown; }
 
 // Helper: tenant.branches JSONB ni parse qilish
@@ -412,26 +468,267 @@ export class OwnerService {
     };
   }
 
-  async getFinancialAnalytics(tenantId: string, period: string): Promise<{ revenueTimeline: RevenueTimelineRow[]; byMethod: PaymentMethodRow[]; pending: PendingRow }> {
+  // FIX: Finances dashboard avval database modullaridan butunlay uzilgan edi —
+  // backend faqat { revenueTimeline, byMethod, pending } qaytarardi, frontend esa
+  // FinancialOverview shaklini kutardi (mrr/totalPaid/...), shuning uchun
+  // Total Income va Total Expenses doim 0 ko'rinardi.
+  //
+  // Endi bu metod to'liq FinancialOverviewResult ni qaytaradi:
+  //  - totalIncome  = jami to'langan to'lovlar (payments.status='paid')
+  //  - totalExpenses = faol xodimlar (teacher/admin) oylik maoshlari yig'indisi
+  //                    (users.metadata->salary, HR panelidagi bilan bir xil manba)
+  //  - netProfit    = totalIncome - totalExpenses (qat'iy formula)
+  //  - currency     = tenants.currency (unified, default 'UZS')
+  //  - revenueByBranch / courseBreakdown / studentBreakdown — chuqur tahlil
+  //    (cash inflow/outflow har bir student, course va branch (filial) bo'yicha)
+  async getFinancialAnalytics(tenantId: string, period: string): Promise<FinancialOverviewResult> {
     const intervals: Record<string, string> = { month: '30 days', quarter: '90 days', year: '365 days' };
     const interval = intervals[period] || '30 days';
-    const [revenue, byMethod, pending] = await Promise.all([
+
+    const [
+      tenantRows,
+      revenueTimeline,
+      byMethod,
+      pending,
+      overdue,
+      totalPaidRow,
+      mrrRow,
+      expensesRow,
+      branchIncomeRows,
+      branchExpenseRows,
+      courseRows,
+      teacherSalaryRows,
+      studentRows,
+    ] = await Promise.all([
+      // Tenant currency + branches (for unified currency display & branch breakdown)
+      this.dataSource.query(
+        `SELECT currency, branches FROM tenants WHERE id = $1`,
+        [tenantId],
+      ) as Promise<TenantCurrencyRow[]>,
+
+      // Revenue timeline (kunlik daromad grafigi uchun)
       this.dataSource.query(
         `SELECT DATE_TRUNC('day', paid_at) as date, SUM(total_amount) as amount, COUNT(*) as count
          FROM payments WHERE tenant_id = $1 AND status='paid' AND paid_at >= NOW() - INTERVAL '${interval}'
          GROUP BY DATE_TRUNC('day', paid_at) ORDER BY date`,
         [tenantId],
       ) as Promise<RevenueTimelineRow[]>,
+
+      // To'lov usullari bo'yicha taqsimot
       this.dataSource.query(
         `SELECT payment_method as method, COUNT(*), SUM(total_amount) as total FROM payments WHERE tenant_id = $1 AND status='paid' AND paid_at >= NOW() - INTERVAL '${interval}' GROUP BY payment_method`,
         [tenantId],
       ) as Promise<PaymentMethodRow[]>,
+
+      // Kutilayotgan to'lovlar (pending + overdue)
       this.dataSource.query(
-        `SELECT COUNT(*), SUM(total_amount) as total FROM payments WHERE tenant_id = $1 AND status IN ('pending','overdue')`,
+        `SELECT COUNT(*), COALESCE(SUM(total_amount), 0) as total FROM payments WHERE tenant_id = $1 AND status IN ('pending','overdue')`,
         [tenantId],
       ) as Promise<PendingRow[]>,
+
+      // Muddati o'tgan to'lovlar
+      this.dataSource.query(
+        `SELECT COALESCE(SUM(total_amount), 0) as total FROM payments WHERE tenant_id = $1 AND status = 'overdue'`,
+        [tenantId],
+      ) as Promise<AmountTotalRow[]>,
+
+      // BUG #2 FIX: Total Income — barcha to'langan to'lovlar yig'indisi
+      this.dataSource.query(
+        `SELECT COALESCE(SUM(total_amount), 0) as total FROM payments WHERE tenant_id = $1 AND status = 'paid'`,
+        [tenantId],
+      ) as Promise<AmountTotalRow[]>,
+
+      // MRR — joriy oy daromadi (getGlobalDashboard bilan bir xil mantiq)
+      this.dataSource.query(
+        `SELECT COALESCE(SUM(total_amount), 0) as total FROM payments
+         WHERE tenant_id = $1 AND status = 'paid' AND paid_at >= DATE_TRUNC('month', NOW())`,
+        [tenantId],
+      ) as Promise<AmountTotalRow[]>,
+
+      // BUG #1 FIX: Total Expenses — faol teacher/admin xodimlarning oylik maoshlari
+      // (HR paneldagi "Monthly Payroll" bilan bir xil manba: users.metadata->salary)
+      this.dataSource.query(
+        `SELECT COALESCE(SUM((metadata->>'salary')::numeric), 0) as total
+         FROM users
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND status = 'active'
+           AND role IN ('teacher','admin') AND metadata ? 'salary'`,
+        [tenantId],
+      ) as Promise<AmountTotalRow[]>,
+
+      // BUG #4/#9 FIX: Branch (filial) bo'yicha cash INFLOW — to'lovlar studentning filiali bo'yicha guruhlanadi
+      // (s.branch NULL bo'lsa ham saqlanadi — yagona filial fallback resolveBranchName() da qo'llanadi)
+      this.dataSource.query(
+        `SELECT s.branch as branch, COALESCE(SUM(p.total_amount), 0) as income
+         FROM payments p
+         JOIN students s ON s.id = p.student_id
+         WHERE p.tenant_id = $1 AND p.status = 'paid'
+         GROUP BY s.branch`,
+        [tenantId],
+      ) as Promise<BranchIncomeRow[]>,
+
+      // BUG #4/#9 FIX: Branch (filial) bo'yicha cash OUTFLOW — xodim maoshlari filial bo'yicha guruhlanadi
+      // (branch NULL bo'lsa ham saqlanadi — yagona filial fallback resolveBranchName() da qo'llanadi)
+      this.dataSource.query(
+        `SELECT branch as branch, COALESCE(SUM((metadata->>'salary')::numeric), 0) as expenses
+         FROM users
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND status = 'active'
+           AND role IN ('teacher','admin') AND metadata ? 'salary'
+         GROUP BY branch`,
+        [tenantId],
+      ) as Promise<BranchExpenseRow[]>,
+
+      // BUG #4 FIX: Course (kurs) bo'yicha cash INFLOW — kursga tegishli to'langan to'lovlar
+      this.dataSource.query(
+        `SELECT c.id, c.title, c.currency, c.teacher_id as "teacherId",
+                COALESCE(SUM(p.total_amount) FILTER (WHERE p.status = 'paid'), 0) as income
+         FROM courses c
+         LEFT JOIN payments p ON p.course_id = c.id AND p.tenant_id = $1
+         WHERE c.tenant_id = $1 AND c.deleted_at IS NULL
+         GROUP BY c.id, c.title, c.currency, c.teacher_id`,
+        [tenantId],
+      ) as Promise<CourseFinanceRow[]>,
+
+      // Course OUTFLOW uchun — kursga biriktirilgan o'qituvchining maoshi
+      this.dataSource.query(
+        `SELECT id, metadata->>'salary' as salary FROM users WHERE tenant_id = $1 AND role IN ('teacher','admin') AND deleted_at IS NULL`,
+        [tenantId],
+      ) as Promise<TeacherSalaryRow[]>,
+
+      // BUG #4 FIX: Student (talaba) bo'yicha cash INFLOW (to'langan) / OUTFLOW (qaytarilgan)
+      this.dataSource.query(
+        `SELECT s.id as "studentId", u."firstName" as "firstName", u."lastName" as "lastName", s.branch,
+                COALESCE(SUM(p.total_amount) FILTER (WHERE p.status = 'paid'), 0) as inflow,
+                COALESCE(SUM(p.refunded_amount), 0) as outflow
+         FROM students s
+         JOIN users u ON u.id = s.user_id
+         LEFT JOIN payments p ON p.student_id = s.id AND p.tenant_id = $1
+         WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
+         GROUP BY s.id, u."firstName", u."lastName", s.branch
+         ORDER BY inflow DESC
+         LIMIT 20`,
+        [tenantId],
+      ) as Promise<StudentFinanceRow[]>,
     ]);
-    return { revenueTimeline: revenue, byMethod, pending: pending[0] };
+
+    const currency = tenantRows[0]?.currency || 'UZS';
+
+    // ── Top-level totals ────────────────────────────────────────────────────
+    const totalIncome = parseFloat(totalPaidRow[0]?.total ?? '0') || 0;
+    const totalExpenses = parseFloat(expensesRow[0]?.total ?? '0') || 0;
+    // BUG #4 FIX (Net Profit formula): strictly Total Income - Total Expenses
+    const netProfit = totalIncome - totalExpenses;
+    const mrr = parseFloat(mrrRow[0]?.total ?? '0') || 0;
+
+    // ── Per-branch breakdown (cash inflow/outflow per Filial) ──────────────
+    // BUG #9 FIX: users.branch / students.branch ko'pincha NULL bo'ladi (filial
+    // tayinlash UI orqali saqlanmagan), shuning uchun bu yozuvlar 'Unassigned'
+    // ostida to'planib qolardi. HR paneli bilan bir xil mantiq qo'llanadi:
+    // NULL filial — tenant.branches ichidagi isMain:true filialga tegishli
+    // deb hisoblanadi (yo'q bo'lsa — birinchi filial).
+    const tenantBranchList = parseBranchesJson(tenantRows[0]?.branches);
+    const mainBranch =
+      tenantBranchList.find((b) => b.isMain === true) ?? tenantBranchList[0];
+    const fallbackBranchName =
+      typeof mainBranch?.name === 'string' ? mainBranch.name : null;
+    const resolveBranchName = (branch: string | null): string =>
+      branch ?? fallbackBranchName ?? 'Unassigned';
+
+    const branchMap = new Map<string, { revenue: number; expenses: number }>();
+    for (const b of tenantBranchList) {
+      const name = typeof b.name === 'string' ? b.name : 'Unassigned';
+      branchMap.set(name, { revenue: 0, expenses: 0 });
+    }
+    for (const row of branchIncomeRows) {
+      const name = resolveBranchName(row.branch);
+      const entry = branchMap.get(name) ?? { revenue: 0, expenses: 0 };
+      entry.revenue += parseFloat(row.income) || 0;
+      branchMap.set(name, entry);
+    }
+    for (const row of branchExpenseRows) {
+      const name = resolveBranchName(row.branch);
+      const entry = branchMap.get(name) ?? { revenue: 0, expenses: 0 };
+      entry.expenses += parseFloat(row.expenses) || 0;
+      branchMap.set(name, entry);
+    }
+    const revenueByBranch: FinancialBranchBreakdown[] = Array.from(branchMap.entries()).map(
+      ([branchName, v]) => ({
+        branchName,
+        revenue: v.revenue,
+        expenses: v.expenses,
+        netProfit: v.revenue - v.expenses,
+      }),
+    );
+
+    // ── Per-course breakdown (cash inflow/outflow per Course) ───────────────
+    const teacherSalaryMap = new Map<string, number>();
+    for (const t of teacherSalaryRows) {
+      teacherSalaryMap.set(t.id, parseFloat(t.salary ?? '0') || 0);
+    }
+    const courseBreakdown: FinancialCourseBreakdown[] = courseRows.map((r) => {
+      const income = parseFloat(r.income) || 0;
+      const expenses = r.teacherId ? (teacherSalaryMap.get(r.teacherId) ?? 0) : 0;
+      return {
+        courseId: r.id,
+        courseName: r.title,
+        income,
+        expenses,
+        netProfit: income - expenses,
+        currency: r.currency || currency,
+      };
+    });
+
+    // ── Per-student breakdown (cash inflow/outflow per individual student) ──
+    const studentBreakdown: FinancialStudentBreakdown[] = studentRows.map((r) => {
+      const inflow = parseFloat(r.inflow) || 0;
+      const outflow = parseFloat(r.outflow) || 0;
+      return {
+        studentId: r.studentId,
+        studentName: `${r.firstName} ${r.lastName}`.trim(),
+        // BUG #9 FIX: s.branch NULL bo'lsa ham, yagona filial fallback bilan to'ldiriladi
+        // (filtr dropdown va branch breakdown bilan mos kelishi uchun)
+        branch: resolveBranchName(r.branch),
+        inflow,
+        outflow,
+        netProfit: inflow - outflow,
+        currency,
+      };
+    });
+
+    const topStudents = studentBreakdown.slice(0, 5).map((s) => ({
+      studentId: s.studentId,
+      studentName: s.studentName,
+      totalPaid: s.inflow,
+      currency: s.currency,
+    }));
+
+    // ── Payment method breakdown with percentages ───────────────────────────
+    const methodTotal = byMethod.reduce((sum, m) => sum + (parseFloat(m.total ?? '0') || 0), 0);
+    const paymentMethodBreakdown = byMethod.map((m) => {
+      const amount = parseFloat(m.total ?? '0') || 0;
+      return {
+        method: m.method,
+        amount,
+        percent: methodTotal > 0 ? Math.round((amount / methodTotal) * 100) : 0,
+      };
+    });
+
+    return {
+      currency,
+      mrr,
+      arr: mrr * 12,
+      totalIncome,
+      totalExpenses,
+      netProfit,
+      totalPaid: totalIncome,
+      totalOutstanding: parseFloat(pending[0]?.total ?? '0') || 0,
+      overdueTotal: parseFloat(overdue[0]?.total ?? '0') || 0,
+      revenueTimeline,
+      revenueByBranch,
+      paymentMethodBreakdown,
+      topStudents,
+      courseBreakdown,
+      studentBreakdown,
+    };
   }
 
   async manageBranches(tenantId: string, dto: ManageBranchDto): Promise<{ branches: BranchDto[] }> {

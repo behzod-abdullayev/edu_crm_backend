@@ -9,12 +9,10 @@ import {
   UserRow,
   PaginatedResult,
   GlobalDashboardKpis,
-  RevenueTimelineRow,
-  PaymentMethodRow,
-  PendingRow,
   BranchDto,
   TenantRow,
   AuditLogRow,
+  FinancialOverviewResult,
 } from './owner.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -80,7 +78,7 @@ export class OwnerController {
   getFinancialAnalytics(
     @CurrentUser() user: User,
     @Query() query: FinancialPeriodDto,
-  ): Promise<{ revenueTimeline: RevenueTimelineRow[]; byMethod: PaymentMethodRow[]; pending: PendingRow }> {
+  ): Promise<FinancialOverviewResult> {
     return this.ownerService.getFinancialAnalytics(user.tenantId, query.period || 'month');
   }
 
