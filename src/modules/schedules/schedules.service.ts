@@ -2,6 +2,17 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SchedulesRepository } from './schedules.repository';
+import { DayOfWeek } from '../../shared/enums';
+
+const DAY_OF_WEEK_BY_INDEX: DayOfWeek[] = [
+  DayOfWeek.SUNDAY,
+  DayOfWeek.MONDAY,
+  DayOfWeek.TUESDAY,
+  DayOfWeek.WEDNESDAY,
+  DayOfWeek.THURSDAY,
+  DayOfWeek.FRIDAY,
+  DayOfWeek.SATURDAY,
+];
 
 @Injectable()
 export class SchedulesService {
@@ -12,7 +23,13 @@ export class SchedulesService {
   ) {}
 
   async create(dto: any, tenantId: string): Promise<any> {
-    const schedule = this.schedulesRepository.create({ ...dto, tenantId, date: new Date(dto.date) } as any);
+    const { date, classroom, ...rest } = dto;
+    const schedule = this.schedulesRepository.create({
+      ...rest,
+      tenantId,
+      ...(classroom !== undefined ? { room: classroom } : {}),
+      ...(date !== undefined ? { specificDate: new Date(date), dayOfWeek: DAY_OF_WEEK_BY_INDEX[new Date(date).getDay()] } : {}),
+    } as any);
     const saved = await this.schedulesRepository.save(schedule);
     this.eventEmitter.emit('schedule.updated', {
       tenantId,
@@ -34,9 +51,8 @@ export class SchedulesService {
         schedules.push(
           this.schedulesRepository.create({
             tenantId, groupId, teacherId, courseId,
-            date: new Date(current),
-            startTime, endTime, classroom,
-            type: 'regular', status: 'scheduled',
+            specificDate: new Date(current),
+            startTime, endTime, room: classroom,
           } as any),
         );
       }
@@ -70,7 +86,12 @@ export class SchedulesService {
 
   async update(id: string, dto: any, tenantId: string): Promise<any> {
     await this.findOne(id, tenantId);
-    await this.schedulesRepository.update(id, dto);
+    const { date, classroom, ...rest } = dto;
+    await this.schedulesRepository.update(id, {
+      ...rest,
+      ...(classroom !== undefined ? { room: classroom } : {}),
+      ...(date !== undefined ? { specificDate: new Date(date), dayOfWeek: DAY_OF_WEEK_BY_INDEX[new Date(date).getDay()] } : {}),
+    });
     const updated = await this.findOne(id, tenantId);
     this.eventEmitter.emit('schedule.updated', {
       tenantId,
