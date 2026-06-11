@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsBoolean, IsNumber, IsDateString, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsDateString, IsEmail, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateUserDto } from '../../users/dto/create-user.dto';
+import { UserStatus } from '../../../shared/enums';
 
 export class CreateStudentDto extends CreateUserDto {
   @ApiPropertyOptional() @IsOptional() @IsString() parentName?: string;
@@ -24,6 +25,7 @@ export class UpdateStudentDto {
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() scholarshipPercent?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() branch?: string;
+  @ApiPropertyOptional({ enum: UserStatus }) @IsOptional() @IsEnum(UserStatus) status?: UserStatus;
 }
 
 export class QueryStudentsDto {

@@ -138,8 +138,14 @@ export class StudentsService {
 
   async update(id: string, dto: UpdateStudentDto, tenantId: string): Promise<Student> {
     const student = await this.findOne(id, tenantId);
-    await this.studentsRepository.update(id, dto as any);
-    return { ...student, ...dto };
+    const { status, ...studentDto } = dto;
+    if (status !== undefined) {
+      await this.usersRepository.update(student.userId, { status });
+    }
+    if (Object.keys(studentDto).length > 0) {
+      await this.studentsRepository.update(id, studentDto as any);
+    }
+    return this.findOne(id, tenantId);
   }
 
   async remove(id: string, tenantId: string): Promise<void> {
