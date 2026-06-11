@@ -53,8 +53,8 @@ export class AdminController {
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get admin analytics data for charts' })
   @ApiResponse({ status: 200, type: AdminAnalyticsDto })
-  getAnalytics(@TenantId() tenantId: string) {
-    return this.adminService.getAnalytics(tenantId);
+  getAnalytics(@TenantId() tenantId: string, @Query() query: ReportQueryDto) {
+    return this.adminService.getAnalytics(tenantId, query);
   }
 
   @Get('reports/:type')

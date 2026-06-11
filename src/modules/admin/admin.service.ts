@@ -137,15 +137,18 @@ export class AdminService {
     };
   }
 
-  async getAnalytics(tenantId: string): Promise<AdminAnalyticsDto> {
+  async getAnalytics(tenantId: string, query: ReportQueryDto): Promise<AdminAnalyticsDto> {
     const revenueByMonth: MonthlyDataPointDto[] = [];
     const enrollmentsByMonth: MonthlyDataPointDto[] = [];
     const attendanceByMonth: MonthlyDataPointDto[] = [];
 
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(1);
-      d.setMonth(d.getMonth() - i);
+    const to = query.to ? new Date(query.to) : new Date();
+    const from = query.from ? new Date(query.from) : new Date(to.getFullYear(), to.getMonth() - 5, 1);
+    const monthSpan = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
+    const monthCount = Math.min(Math.max(monthSpan, 1), 12);
+
+    for (let i = monthCount - 1; i >= 0; i--) {
+      const d = new Date(to.getFullYear(), to.getMonth() - i, 1);
       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
       const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
