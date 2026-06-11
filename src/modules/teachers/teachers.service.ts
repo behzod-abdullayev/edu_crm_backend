@@ -81,8 +81,14 @@ export class TeachersService {
   }
 
   async update(id: string, dto: UpdateTeacherDto, tenantId: string): Promise<Teacher> {
-    await this.findOne(id, tenantId);
-    await this.teachersRepository.update(id, dto);
+    const teacher = await this.findOne(id, tenantId);
+    const { status, ...teacherDto } = dto;
+    if (status !== undefined) {
+      await this.usersRepository.update(teacher.userId, { status });
+    }
+    if (Object.keys(teacherDto).length > 0) {
+      await this.teachersRepository.update(id, teacherDto);
+    }
     return this.findOne(id, tenantId);
   }
 
