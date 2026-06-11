@@ -48,13 +48,13 @@ export class PaymentsRepository extends Repository<Payment> {
 
   async getDebtors(tenantId: string): Promise<any[]> {
     return this.dataSource.query(
-      `SELECT s.id, u.first_name, u.last_name, u.email, u.phone,
+      `SELECT s.id, u."firstName" as first_name, u."lastName" as last_name, u.email, u.phone,
               s.debt_amount, COUNT(p.id) as overdue_count
        FROM students s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN payments p ON p.student_id = s.id AND p.status = 'overdue'
        WHERE s.tenant_id = $1 AND s.debt_amount > 0
-       GROUP BY s.id, u.first_name, u.last_name, u.email, u.phone, s.debt_amount
+       GROUP BY s.id, u."firstName", u."lastName", u.email, u.phone, s.debt_amount
        ORDER BY s.debt_amount DESC`, [tenantId],
     );
   }
