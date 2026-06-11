@@ -234,7 +234,7 @@ export class AdminService {
   async getPaymentMonitoring(tenantId: string, filters: PaymentMonitoringFilters): Promise<{ payments: PaymentMonitorRow[]; summary: PaymentSummaryRow[] }> {
     const { from, to, status } = filters;
     let query = `
-      SELECT p.*, u.first_name, u.last_name, u.email
+      SELECT p.*, u."firstName" as first_name, u."lastName" as last_name, u.email
       FROM payments p
       JOIN students s ON s.id = p.student_id
       JOIN users u ON u.id = s.user_id
@@ -269,7 +269,10 @@ export class AdminService {
         [tenantId, from, to],
       ) as Promise<HomeworkRow[]>,
       this.dataSource.query(
-        `SELECT COUNT(*) as total, AVG(total_score) as avg_score FROM exam_results WHERE tenant_id = $1 AND submitted_at BETWEEN $2 AND $3`,
+        `SELECT COUNT(*) as total, AVG(ea.score) as avg_score
+         FROM exam_attempts ea
+         JOIN exams e ON e.id = ea.exam_id
+         WHERE e.tenant_id = $1 AND ea.submitted_at BETWEEN $2 AND $3`,
         [tenantId, from, to],
       ) as Promise<ExamRow[]>,
       this.dataSource.query(
@@ -321,14 +324,14 @@ export class AdminService {
 
   async getDebtReport(tenantId: string): Promise<DebtReportItemDto[]> {
     const rows = await this.dataSource.query(
-      `SELECT s.id, u.first_name, u.last_name, u.email, u.phone,
+      `SELECT s.id, u."firstName" as first_name, u."lastName" as last_name, u.email, u.phone,
               s.debt_amount, s.student_code,
               COUNT(p.id) as overdue_payments
        FROM students s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN payments p ON p.student_id = s.id AND p.status = 'overdue'
        WHERE s.tenant_id = $1 AND s.debt_amount > 0 AND s.deleted_at IS NULL
-       GROUP BY s.id, u.first_name, u.last_name, u.email, u.phone, s.debt_amount, s.student_code
+       GROUP BY s.id, u."firstName", u."lastName", u.email, u.phone, s.debt_amount, s.student_code
        ORDER BY s.debt_amount DESC`,
       [tenantId],
     ) as Array<{ id: string; first_name: string; last_name: string; email: string; phone: string; debt_amount: string; student_code: string; overdue_payments: string }>;
