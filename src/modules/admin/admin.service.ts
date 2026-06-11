@@ -46,7 +46,7 @@ export class AdminService {
         [tenantId],
       ) as Promise<RevenueRow[]>,
       this.dataSource.query(
-        `SELECT COUNT(*) as total, SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) as present FROM attendances WHERE tenant_id = $1 AND DATE(marked_at) = CURRENT_DATE`,
+        `SELECT COUNT(*) as total, SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) as present FROM attendance WHERE tenant_id = $1 AND date = CURRENT_DATE`,
         [tenantId],
       ) as Promise<AttendanceRow[]>,
     ]);
@@ -82,7 +82,7 @@ export class AdminService {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const attendanceResult = await this.dataSource.query(
-      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendances WHERE tenant_id = $1 AND marked_at >= $2`,
+      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendance WHERE tenant_id = $1 AND date >= $2`,
       [tenantId, thirtyDaysAgo],
     ) as AttendanceRow[];
     const total = parseInt(attendanceResult[0]?.total ?? '0', 10);
@@ -113,7 +113,7 @@ export class AdminService {
       : 0;
 
     const todayAttResult = await this.dataSource.query(
-      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendances WHERE tenant_id = $1 AND DATE(marked_at) = CURRENT_DATE`,
+      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendance WHERE tenant_id = $1 AND date = CURRENT_DATE`,
       [tenantId],
     ) as AttendanceRow[];
     const todayTotal = parseInt(todayAttResult[0]?.total ?? '0', 10);
@@ -163,7 +163,7 @@ export class AdminService {
       enrollmentsByMonth.push({ month: monthKey, value: parseInt(enrollResult[0]?.count ?? '0', 10) });
 
       const attResult = await this.dataSource.query(
-        `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendances WHERE tenant_id = $1 AND marked_at BETWEEN $2 AND $3`,
+        `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendance WHERE tenant_id = $1 AND date BETWEEN $2 AND $3`,
         [tenantId, monthStart, monthEnd],
       ) as MonthlyAttRow[];
       const t = parseInt(attResult[0]?.total ?? '0', 10);
@@ -212,7 +212,7 @@ export class AdminService {
     const from = query.from ? new Date(query.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const to = query.to ? new Date(query.to) : new Date();
     const result = await this.dataSource.query(
-      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendances WHERE tenant_id = $1 AND marked_at BETWEEN $2 AND $3`,
+      `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present FROM attendance WHERE tenant_id = $1 AND date BETWEEN $2 AND $3`,
       [tenantId, from, to],
     ) as AttendanceRow[];
     const total = parseInt(result[0]?.total ?? '0', 10);
@@ -261,7 +261,7 @@ export class AdminService {
         [tenantId, from, to],
       ) as Promise<Array<{ new_enrollments: string }>>,
       this.dataSource.query(
-        `SELECT COUNT(*) as total, SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) as present FROM attendances WHERE tenant_id = $1 AND marked_at BETWEEN $2 AND $3`,
+        `SELECT COUNT(*) as total, SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) as present FROM attendance WHERE tenant_id = $1 AND date BETWEEN $2 AND $3`,
         [tenantId, from, to],
       ) as Promise<AttendanceRow[]>,
       this.dataSource.query(
