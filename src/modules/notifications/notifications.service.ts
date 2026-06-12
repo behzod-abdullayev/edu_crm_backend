@@ -122,6 +122,13 @@ export class NotificationsService {
     });
   }
 
+  async getUnreadCount(userId: string, tenantId: string): Promise<{ count: number }> {
+    const count = await this.notifRepo.count({
+      where: { userId, tenantId, isRead: false },
+    });
+    return { count };
+  }
+
   async markRead(id: string, userId: string): Promise<void> {
     await this.notifRepo
       .createQueryBuilder()
