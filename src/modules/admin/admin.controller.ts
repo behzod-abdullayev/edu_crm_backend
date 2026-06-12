@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Query,
+  Controller, Get, Post, Patch, Delete, Param, Body, Query,
   UseGuards, ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -20,6 +20,10 @@ import {
 import { AdminDashboardDto } from './dto/admin-dashboard.dto';
 import { AdminAnalyticsDto } from './dto/admin-analytics.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
+import {
+  TenantSettingsConfigDto, UpdateTenantSettingsDto, PricingEntryDto,
+  UpdateNotificationPreferencesDto,
+} from './dto/admin-settings.dto';
 import { AdminScheduleQueryDto } from './dto/schedule-query.dto';
 import { SchedulesService } from '../schedules/schedules.service';
 import { CreateScheduleDto } from '../schedules/dto/create-schedule.dto';
@@ -69,6 +73,68 @@ export class AdminController {
     @Query() query: ReportQueryDto,
   ) {
     return this.adminService.getReportByType(type, tenantId, query);
+  }
+
+  @Get('settings/config')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get tenant configuration for the settings page' })
+  @ApiResponse({ status: 200, type: TenantSettingsConfigDto })
+  getSettingsConfig(@TenantId() tenantId: string) {
+    return this.adminService.getSettingsConfig(tenantId);
+  }
+
+  @Patch('settings/config')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update tenant configuration' })
+  @ApiResponse({ status: 200, type: TenantSettingsConfigDto })
+  updateSettingsConfig(@TenantId() tenantId: string, @Body() dto: UpdateTenantSettingsDto) {
+    return this.adminService.updateSettingsConfig(tenantId, dto);
+  }
+
+  @Get('settings/pricing')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get course pricing entries' })
+  @ApiResponse({ status: 200, type: [PricingEntryDto] })
+  getSettingsPricing(@TenantId() tenantId: string) {
+    return this.adminService.getPricingEntries(tenantId);
+  }
+
+  @Patch('settings/pricing/:id')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update price and currency for a course' })
+  @ApiResponse({ status: 200, type: PricingEntryDto })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  updateSettingsPricing(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+    @Body() dto: UpdatePricingDto,
+  ) {
+    return this.adminService.updatePricingEntry(tenantId, id, dto);
+  }
+
+  @Delete('settings/pricing/:id')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Reset a course price back to zero' })
+  @ApiResponse({ status: 200, description: 'Pricing reset' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  deleteSettingsPricing(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
+    return this.adminService.resetPricingEntry(tenantId, id);
+  }
+
+  @Get('settings/notifications')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get tenant notification preferences' })
+  @ApiResponse({ status: 200, description: 'Map of notification preference keys to enabled flags' })
+  getSettingsNotifications(@TenantId() tenantId: string) {
+    return this.adminService.getNotificationPreferences(tenantId);
+  }
+
+  @Patch('settings/notifications')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update tenant notification preferences' })
+  @ApiResponse({ status: 200, description: 'Updated map of notification preference keys to enabled flags' })
+  updateSettingsNotifications(@TenantId() tenantId: string, @Body() dto: UpdateNotificationPreferencesDto) {
+    return this.adminService.updateNotificationPreferences(tenantId, dto.preferences);
   }
 
   @Get('schedule')

@@ -9,6 +9,9 @@ import {
 import { AdminDashboardDto, ActivityItemDto } from './dto/admin-dashboard.dto';
 import { AdminAnalyticsDto, MonthlyDataPointDto } from './dto/admin-analytics.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
+import {
+  TenantSettingsConfigDto, UpdateTenantSettingsDto, PricingEntryDto,
+} from './dto/admin-settings.dto';
 import { CourseStatus } from '../../shared/enums';
 
 export interface PaymentMonitorRow {
@@ -27,6 +30,29 @@ interface UserRow { id: string; }
 interface MonthlyRevenueRow { total: string; }
 interface MonthlyCountRow { count: string; }
 interface MonthlyAttRow { total: string; present: string; }
+interface TenantSettingsRow {
+  name: string;
+  logo_url: string | null;
+  timezone: string | null;
+  currency: string;
+  primary_color: string | null;
+  feature_flags: {
+    paymentsEnabled?: boolean;
+    chatEnabled?: boolean;
+    certificatesEnabled?: boolean;
+    examEngineEnabled?: boolean;
+    [key: string]: unknown;
+  } | null;
+}
+interface CoursePricingRow {
+  id: string;
+  title: string;
+  price: string;
+  currency: string;
+}
+interface TenantSettingsJsonRow {
+  settings: Record<string, unknown> | null;
+}
 
 @Injectable()
 export class AdminService {
@@ -485,5 +511,127 @@ export class AdminService {
     });
 
     return { message: 'Schedule created', id: result[0].id };
+  }
+
+  async getSettingsConfig(tenantId: string): Promise<TenantSettingsConfigDto> {
+    const rows = await this.dataSource.query(
+      `SELECT name, logo_url, timezone, currency, primary_color, feature_flags FROM tenants WHERE id = $1`,
+      [tenantId],
+    ) as TenantSettingsRow[];
+    const tenant = rows[0];
+    const flags = tenant?.feature_flags ?? {};
+
+    return {
+      academyName: tenant?.name ?? '',
+      logoUrl: tenant?.logo_url ?? null,
+      timezone: tenant?.timezone ?? 'Asia/Tashkent',
+      currency: tenant?.currency ?? 'UZS',
+      primaryColor: tenant?.primary_color ?? '#4F46E5',
+      features: {
+        payments: flags.paymentsEnabled ?? true,
+        chat: flags.chatEnabled ?? false,
+        certificates: flags.certificatesEnabled ?? true,
+        exams: flags.examEngineEnabled ?? false,
+      },
+    };
+  }
+
+  async updateSettingsConfig(tenantId: string, dto: UpdateTenantSettingsDto): Promise<TenantSettingsConfigDto> {
+    const rows = await this.dataSource.query(
+      `SELECT feature_flags FROM tenants WHERE id = $1`,
+      [tenantId],
+    ) as TenantSettingsRow[];
+    const currentFlags = rows[0]?.feature_flags ?? {};
+    const newFlags = {
+      ...currentFlags,
+      paymentsEnabled: dto.features.payments,
+      chatEnabled: dto.features.chat,
+      certificatesEnabled: dto.features.certificates,
+      examEngineEnabled: dto.features.exams,
+    };
+
+    await this.dataSource.query(
+      `UPDATE tenants SET name = $1, logo_url = $2, timezone = $3, currency = $4, primary_color = $5, feature_flags = $6::jsonb, updated_at = NOW() WHERE id = $7`,
+      [dto.academyName, dto.logoUrl ?? null, dto.timezone, dto.currency, dto.primaryColor, JSON.stringify(newFlags), tenantId],
+    );
+
+    return this.getSettingsConfig(tenantId);
+  }
+
+  async getPricingEntries(tenantId: string): Promise<PricingEntryDto[]> {
+    const rows = await this.dataSource.query(
+      `SELECT id, title, price, currency FROM courses WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY title ASC`,
+      [tenantId],
+    ) as CoursePricingRow[];
+
+    return rows.map((row) => ({
+      id: row.id,
+      courseId: row.id,
+      courseName: row.title,
+      price: Number(row.price),
+      currency: row.currency,
+    }));
+  }
+
+  async updatePricingEntry(tenantId: string, courseId: string, dto: UpdatePricingDto): Promise<PricingEntryDto> {
+    const rows = await this.dataSource.query(
+      `UPDATE courses SET price = $1, currency = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4 AND deleted_at IS NULL RETURNING id, title, price, currency`,
+      [dto.price, dto.currency || 'UZS', courseId, tenantId],
+    ) as CoursePricingRow[];
+
+    if (!rows[0]) {
+      throw new NotFoundException('Course not found');
+    }
+
+    return {
+      id: rows[0].id,
+      courseId: rows[0].id,
+      courseName: rows[0].title,
+      price: Number(rows[0].price),
+      currency: rows[0].currency,
+    };
+  }
+
+  async resetPricingEntry(tenantId: string, courseId: string): Promise<{ message: string }> {
+    const rows = await this.dataSource.query(
+      `UPDATE courses SET price = 0, updated_at = NOW() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING id`,
+      [courseId, tenantId],
+    ) as Array<{ id: string }>;
+
+    if (!rows[0]) {
+      throw new NotFoundException('Course not found');
+    }
+
+    return { message: 'Pricing reset' };
+  }
+
+  async getNotificationPreferences(tenantId: string): Promise<Record<string, boolean>> {
+    const rows = await this.dataSource.query(
+      `SELECT settings FROM tenants WHERE id = $1`,
+      [tenantId],
+    ) as TenantSettingsJsonRow[];
+    const settings = rows[0]?.settings ?? {};
+    return (settings['notificationPreferences'] ?? {}) as Record<string, boolean>;
+  }
+
+  async updateNotificationPreferences(
+    tenantId: string,
+    preferences: Record<string, boolean>,
+  ): Promise<Record<string, boolean>> {
+    const rows = await this.dataSource.query(
+      `SELECT settings FROM tenants WHERE id = $1`,
+      [tenantId],
+    ) as TenantSettingsJsonRow[];
+    const settings = rows[0]?.settings ?? {};
+    const existing = (settings['notificationPreferences'] ?? {}) as Record<string, boolean>;
+    const merged = { ...existing, ...preferences };
+    const newSettings = { ...settings, notificationPreferences: merged };
+
+    await this.dataSource.query(
+      `UPDATE tenants SET settings = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(newSettings), tenantId],
+    );
+
+    return merged;
   }
 }
