@@ -42,6 +42,7 @@ export class GroupsService {
       id: student.id,
       firstName: student.user?.firstName ?? '',
       lastName: student.user?.lastName ?? '',
+      email: student.user?.email ?? '',
       profilePictureUrl: student.user?.avatarUrl ?? null,
       studentCode: student.studentCode ?? '',
     }));

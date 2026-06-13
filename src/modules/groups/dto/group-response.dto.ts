@@ -10,6 +10,9 @@ export class GroupStudentDto {
   @ApiProperty()
   lastName: string;
 
+  @ApiProperty()
+  email: string;
+
   @ApiProperty({ nullable: true })
   profilePictureUrl: string | null;
 
