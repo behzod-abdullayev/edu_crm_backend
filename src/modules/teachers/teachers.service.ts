@@ -17,6 +17,17 @@ import {
 } from './dto/teacher-analytics.dto';
 
 interface GroupRow { id: string; }
+interface GroupListRow {
+  id: string;
+  name: string;
+  description: string | null;
+  tenantId: string;
+  teacherId: string;
+  createdAt: Date;
+  isActive: boolean;
+  courseName: string | null;
+  studentCount: string;
+}
 interface StudentRow { id: string; firstName: string; lastName: string; }
 interface AttendanceCountRow { total: string; present_count: string; }
 interface MonthAttendanceRow { total: string; present_count: string; }
@@ -132,15 +143,37 @@ export class TeachersService {
   }
 
   async getGroups(id: string, tenantId: string): Promise<any[]> {
-    await this.findOne(id, tenantId);
-    return this.dataSource.query(
-      `SELECT g.*, c.title as course_title, COUNT(e.id) as student_count
-       FROM groups g LEFT JOIN courses c ON c.id = g.course_id
-       LEFT JOIN enrollments e ON e.group_id = g.id AND e.status = 'active'
+    const teacher = await this.findOne(id, tenantId);
+    const teacherName = teacher.user ? `${teacher.user.firstName} ${teacher.user.lastName}` : undefined;
+
+    const rows = await this.dataSource.query(
+      `SELECT g.id, g.name, g.description,
+              g.tenant_id as "tenantId", g.teacher_id as "teacherId",
+              g.created_at as "createdAt", g.is_active as "isActive",
+              c.title as "courseName",
+              COUNT(gs.student_id)::int as "studentCount"
+       FROM groups g
+       LEFT JOIN courses c ON c.id = g.course_id
+       LEFT JOIN group_students gs ON gs.group_id = g.id
        WHERE g.teacher_id = $1 AND g.tenant_id = $2 AND g.deleted_at IS NULL
-       GROUP BY g.id, c.title ORDER BY g.created_at DESC`,
+       GROUP BY g.id, g.name, g.description, g.tenant_id, g.teacher_id, g.created_at, g.is_active, c.title
+       ORDER BY g.created_at DESC`,
       [id, tenantId],
-    );
+    ) as GroupListRow[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description ?? undefined,
+      teacherId: r.teacherId,
+      teacherName,
+      studentCount: Number(r.studentCount),
+      courseCount: r.courseName ? 1 : 0,
+      tenantId: r.tenantId,
+      createdAt: new Date(r.createdAt).toISOString(),
+      courseName: r.courseName ?? undefined,
+      status: r.isActive ? 'active' : 'inactive',
+    }));
   }
 
   async getSchedule(id: string, tenantId: string): Promise<any[]> {
@@ -287,8 +320,8 @@ export class TeachersService {
            COUNT(att.id)::int AS att_total,
            COUNT(att.id) FILTER (WHERE att.status = 'present')::int AS att_present
          FROM homeworks hw
-         JOIN homework_submissions hs ON hs.homework_id = hw.id AND hs.student_id = $1
-         LEFT JOIN attendance att ON att.student_id = $1 AND att.marked_by = $2 AND att.tenant_id = $3
+         JOIN homework_submissions hs ON hs.homework_id = hw.id AND hs.student_id = $1::text
+         LEFT JOIN attendance att ON att.student_id = $1::uuid AND att.marked_by = $2 AND att.tenant_id = $3
          WHERE hw.teacher_id = $2 AND hw.tenant_id = $3`,
         [student.id, teacherId, tenantId],
       ) as Array<{ avg_score: number | null; att_total: number; att_present: number }>;
