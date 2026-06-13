@@ -19,6 +19,7 @@ import { TeacherResponseDto } from './dto/teacher-response.dto';
 import { TeacherAnalyticsDto } from './dto/teacher-analytics.dto';
 import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
 import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
+import { TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
 
 @ApiTags('Teachers')
 @ApiBearerAuth('JWT')
@@ -117,6 +118,21 @@ export class TeachersController {
     @TenantId() tenantId: string,
   ) {
     return this.teachersService.getAnalytics(id, tenantId);
+  }
+
+  @Get(':id/homework')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Get homework assignments created by this teacher' })
+  @ApiResponse({ status: 200, type: TeacherHomeworkListDto, description: 'Paginated list of homework assignments' })
+  getHomework(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = pageSize ? parseInt(pageSize, 10) : 20;
+    return this.teachersService.getHomework(id, tenantId, pageNum, limitNum);
   }
 
   @Get(':id/groups/:groupId/attendance-sheet')

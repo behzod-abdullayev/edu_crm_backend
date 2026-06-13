@@ -18,6 +18,7 @@ import {
 import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
 import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 import { AttendanceStatus } from '../../shared/enums';
+import { TeacherHomeworkItemDto, TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
 
 interface GroupRow { id: string; }
 interface GroupListRow {
@@ -45,6 +46,22 @@ interface ExistingAttendanceRow { id: string; }
 interface AttendanceCountRow { total: string; present_count: string; }
 interface MonthAttendanceRow { total: string; present_count: string; }
 interface SubmissionRow { score: number | null; homework_id: string; }
+interface TeacherHomeworkRow {
+  id: string;
+  title: string;
+  description: string | null;
+  groupId: string | null;
+  groupName: string | null;
+  courseId: string | null;
+  courseName: string | null;
+  teacherId: string;
+  dueDate: Date | null;
+  maxScore: string;
+  attachments: Array<{ name: string; url: string; type: string }> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+interface HomeworkSubmissionCountRow { homeworkId: string; total: string; graded: string; }
 interface HomeworkCountRow { assigned: string; graded: string; pending: string; }
 
 @Injectable()
@@ -438,6 +455,93 @@ export class TeachersService {
     });
 
     return { marked: dto.entries.length };
+  }
+
+  // ─── NEW: Homework list ────────────────────────────────────────────────────
+
+  async getHomework(
+    teacherId: string,
+    tenantId: string,
+    page: number,
+    limit: number,
+  ): Promise<TeacherHomeworkListDto> {
+    await this.findOne(teacherId, tenantId);
+
+    const offset = (page - 1) * limit;
+
+    const countRows = await this.dataSource.query(
+      `SELECT COUNT(*)::int as total FROM homeworks
+       WHERE teacher_id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [teacherId, tenantId],
+    ) as Array<{ total: number }>;
+    const total = countRows[0]?.total ?? 0;
+
+    const rows = await this.dataSource.query(
+      `SELECT hw.id, hw.title, hw.description,
+              hw.group_id as "groupId", g.name as "groupName",
+              g.course_id as "courseId", c.title as "courseName",
+              hw.teacher_id as "teacherId", hw.due_date as "dueDate",
+              hw.max_score as "maxScore", hw.attachments,
+              hw.created_at as "createdAt", hw.updated_at as "updatedAt"
+       FROM homeworks hw
+       LEFT JOIN groups g ON g.id = hw.group_id
+       LEFT JOIN courses c ON c.id = g.course_id
+       WHERE hw.teacher_id = $1 AND hw.tenant_id = $2 AND hw.deleted_at IS NULL
+       ORDER BY hw.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [teacherId, tenantId, limit, offset],
+    ) as TeacherHomeworkRow[];
+
+    const homeworkIds = rows.map((r) => r.id);
+    const countsByHomework = new Map<string, { total: number; graded: number }>();
+    if (homeworkIds.length > 0) {
+      const countRows2 = await this.dataSource.query(
+        `SELECT homework_id as "homeworkId",
+                COUNT(*)::int as total,
+                COUNT(*) FILTER (WHERE status = 'graded')::int as graded
+         FROM homework_submissions
+         WHERE homework_id = ANY($1::uuid[]) AND tenant_id = $2
+         GROUP BY homework_id`,
+        [homeworkIds, tenantId],
+      ) as HomeworkSubmissionCountRow[];
+      for (const r of countRows2) {
+        countsByHomework.set(r.homeworkId, { total: Number(r.total), graded: Number(r.graded) });
+      }
+    }
+
+    const now = new Date();
+    const data: TeacherHomeworkItemDto[] = rows.map((r) => {
+      const counts = countsByHomework.get(r.id) ?? { total: 0, graded: 0 };
+      const dueDate = r.dueDate ? new Date(r.dueDate) : null;
+      return {
+        id: r.id,
+        title: r.title,
+        ...(r.description ? { description: r.description } : {}),
+        groupId: r.groupId ?? '',
+        ...(r.groupName ? { groupName: r.groupName } : {}),
+        ...(r.courseId ? { courseId: r.courseId } : {}),
+        ...(r.courseName ? { courseName: r.courseName } : {}),
+        teacherId: r.teacherId,
+        ...(dueDate ? { dueDate: dueDate.toISOString() } : {}),
+        maxPoints: Number(r.maxScore),
+        allowResubmit: false,
+        ...(r.attachments?.length ? { attachedFileKeys: r.attachments.map((a) => a.url) } : {}),
+        submissionsCount: counts.total,
+        submissionCount: counts.total,
+        gradedCount: counts.graded,
+        status: dueDate && dueDate < now ? 'closed' : 'published',
+        createdAt: new Date(r.createdAt).toISOString(),
+        updatedAt: new Date(r.updatedAt).toISOString(),
+      };
+    });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+    };
   }
 
   private async assertOwnsGroup(teacherId: string, groupId: string, tenantId: string): Promise<void> {
