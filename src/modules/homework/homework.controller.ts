@@ -15,6 +15,8 @@ import { UpdateHomeworkDto } from './dto/update-homework.dto';
 import { HomeworkResponseDto } from './dto/homework-response.dto';
 import { GradeSubmissionDto } from './dto/grade-submission.dto';
 import { SubmissionResponseDto } from './dto/submission-response.dto';
+import { HomeworkSubmissionItemDto } from './dto/homework-submission-item.dto';
+import { HomeworkDetailDto } from './dto/homework-detail.dto';
 
 // ─── FIX: HomeworkController ──────────────────────────────────────────────────
 //
@@ -35,7 +37,7 @@ import { SubmissionResponseDto } from './dto/submission-response.dto';
 @ApiTags('Homework')
 @ApiBearerAuth('JWT')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@ApiExtraModels(HomeworkResponseDto, SubmissionResponseDto)
+@ApiExtraModels(HomeworkResponseDto, SubmissionResponseDto, HomeworkSubmissionItemDto, HomeworkDetailDto)
 @Controller({ path: 'homework', version: '1' })
 export class HomeworkController {
   constructor(private readonly homeworkService: HomeworkService) {}
@@ -58,10 +60,10 @@ export class HomeworkController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get homework details' })
-  @ApiResponse({ status: 200, type: HomeworkResponseDto, description: 'Homework details' })
+  @ApiResponse({ status: 200, type: HomeworkDetailDto, description: 'Homework details' })
   @ApiResponse({ status: 404, description: 'Not found' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
-    return this.homeworkService.findOne(id, tenantId);
+    return this.homeworkService.getDetail(id, tenantId);
   }
 
   @Patch(':id')
@@ -95,7 +97,7 @@ export class HomeworkController {
   @Post(':id/grade/:submissionId')
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.OWNER)
   @ApiOperation({ summary: 'Grade a homework submission (frontend-compatible URL)' })
-  @ApiResponse({ status: 201, type: SubmissionResponseDto, description: 'Submission graded' })
+  @ApiResponse({ status: 201, type: HomeworkSubmissionItemDto, description: 'Submission graded' })
   @ApiResponse({ status: 404, description: 'Submission not found' })
   gradeByHomeworkId(
     @Param('id', ParseUUIDPipe) _id: string,
@@ -104,7 +106,7 @@ export class HomeworkController {
     @Body() body: GradeSubmissionDto,
     @CurrentUser() user: User,
   ) {
-    return this.homeworkService.grade(submissionId, tenantId, body.score, body.feedback ?? '', user.id);
+    return this.homeworkService.grade(submissionId, tenantId, body.grade, body.feedback ?? '', user.id);
   }
 
   // ── ESKI: Backward compatibility uchun saqlanadi ───────────────────────────
@@ -112,7 +114,7 @@ export class HomeworkController {
   @Patch('submissions/:subId/grade')
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.OWNER)
   @ApiOperation({ summary: 'Grade a homework submission (legacy URL)' })
-  @ApiResponse({ status: 200, type: SubmissionResponseDto, description: 'Submission graded' })
+  @ApiResponse({ status: 200, type: HomeworkSubmissionItemDto, description: 'Submission graded' })
   @ApiResponse({ status: 404, description: 'Submission not found' })
   grade(
     @Param('subId', ParseUUIDPipe) subId: string,
@@ -120,13 +122,13 @@ export class HomeworkController {
     @Body() body: GradeSubmissionDto,
     @CurrentUser() user: User,
   ) {
-    return this.homeworkService.grade(subId, tenantId, body.score, body.feedback ?? '', user.id);
+    return this.homeworkService.grade(subId, tenantId, body.grade, body.feedback ?? '', user.id);
   }
 
   @Get(':id/submissions')
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.OWNER)
   @ApiOperation({ summary: 'Get all submissions for homework' })
-  @ApiResponse({ status: 200, type: SubmissionResponseDto, isArray: true, description: 'List of submissions' })
+  @ApiResponse({ status: 200, type: HomeworkSubmissionItemDto, isArray: true, description: 'List of submissions' })
   @ApiResponse({ status: 404, description: 'Homework not found' })
   getSubmissions(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.homeworkService.getSubmissions(id, tenantId);

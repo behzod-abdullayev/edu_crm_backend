@@ -7,7 +7,7 @@ export class GradeSubmissionDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  score: number;
+  grade: number;
 
   @ApiProperty({ required: false, description: 'Feedback for the student' })
   @IsOptional()
