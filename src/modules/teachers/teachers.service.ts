@@ -15,6 +15,9 @@ import {
   AttendanceByMonthDto,
   StudentPerformanceItemDto,
 } from './dto/teacher-analytics.dto';
+import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
+import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
+import { AttendanceStatus } from '../../shared/enums';
 
 interface GroupRow { id: string; }
 interface GroupListRow {
@@ -29,6 +32,16 @@ interface GroupListRow {
   studentCount: string;
 }
 interface StudentRow { id: string; firstName: string; lastName: string; }
+interface AttendanceSheetRow {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  status: string | null;
+  note: string | null;
+}
+interface GroupOwnershipRow { id: string; }
+interface ExistingAttendanceRow { id: string; }
 interface AttendanceCountRow { total: string; present_count: string; }
 interface MonthAttendanceRow { total: string; present_count: string; }
 interface SubmissionRow { score: number | null; homework_id: string; }
@@ -353,5 +366,85 @@ export class TeachersService {
       attendanceByMonth,
       studentPerformance,
     };
+  }
+
+  // ─── NEW: Attendance marking ──────────────────────────────────────────────
+
+  async getAttendanceSheet(
+    teacherId: string,
+    groupId: string,
+    tenantId: string,
+    date: string,
+  ): Promise<AttendanceSheetEntryDto[]> {
+    await this.findOne(teacherId, tenantId);
+    await this.assertOwnsGroup(teacherId, groupId, tenantId);
+
+    const rows = await this.dataSource.query(
+      `SELECT gs.student_id as "studentId",
+              u."firstName" as "firstName", u."lastName" as "lastName",
+              u.avatar_url as "avatarUrl",
+              a.status as "status", a.note as "note"
+       FROM group_students gs
+       JOIN students s ON s.id = gs.student_id
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN attendance a ON a.student_id = gs.student_id
+         AND a.group_id = gs.group_id
+         AND a.date = $3::date
+         AND a.tenant_id = $2
+       WHERE gs.group_id = $1 AND s.tenant_id = $2
+       ORDER BY u."lastName"`,
+      [groupId, tenantId, date],
+    ) as AttendanceSheetRow[];
+
+    return rows.map((r) => ({
+      studentId: r.studentId,
+      studentName: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
+      ...(r.avatarUrl ? { avatarUrl: r.avatarUrl } : {}),
+      status: r.status ?? AttendanceStatus.PRESENT,
+      ...(r.note ? { note: r.note } : {}),
+    }));
+  }
+
+  async markAttendance(
+    teacherId: string,
+    tenantId: string,
+    dto: MarkGroupAttendanceDto,
+  ): Promise<{ marked: number }> {
+    await this.findOne(teacherId, tenantId);
+    await this.assertOwnsGroup(teacherId, dto.groupId, tenantId);
+
+    await this.dataSource.transaction(async (manager) => {
+      for (const entry of dto.entries) {
+        const existing = await manager.query(
+          `SELECT id FROM attendance
+           WHERE student_id = $1 AND group_id = $2 AND date = $3::date AND tenant_id = $4`,
+          [entry.studentId, dto.groupId, dto.date, tenantId],
+        ) as ExistingAttendanceRow[];
+
+        if (existing.length > 0) {
+          await manager.query(
+            `UPDATE attendance SET status = $1, note = $2, marked_by = $3, updated_at = now()
+             WHERE id = $4`,
+            [entry.status, entry.note ?? null, teacherId, existing[0].id],
+          );
+        } else {
+          await manager.query(
+            `INSERT INTO attendance (tenant_id, student_id, group_id, marked_by, status, date, note)
+             VALUES ($1, $2, $3, $4, $5, $6::date, $7)`,
+            [tenantId, entry.studentId, dto.groupId, teacherId, entry.status, dto.date, entry.note ?? null],
+          );
+        }
+      }
+    });
+
+    return { marked: dto.entries.length };
+  }
+
+  private async assertOwnsGroup(teacherId: string, groupId: string, tenantId: string): Promise<void> {
+    const group = await this.dataSource.query(
+      `SELECT id FROM groups WHERE id = $1 AND teacher_id = $2 AND tenant_id = $3 AND deleted_at IS NULL`,
+      [groupId, teacherId, tenantId],
+    ) as GroupOwnershipRow[];
+    if (group.length === 0) throw new NotFoundException('Group not found');
   }
 }

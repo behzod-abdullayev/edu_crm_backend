@@ -17,6 +17,8 @@ import { UserRole } from '../../shared/enums';
 import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 import { TeacherResponseDto } from './dto/teacher-response.dto';
 import { TeacherAnalyticsDto } from './dto/teacher-analytics.dto';
+import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
+import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 
 @ApiTags('Teachers')
 @ApiBearerAuth('JWT')
@@ -115,5 +117,32 @@ export class TeachersController {
     @TenantId() tenantId: string,
   ) {
     return this.teachersService.getAnalytics(id, tenantId);
+  }
+
+  @Get(':id/groups/:groupId/attendance-sheet')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Get attendance sheet for a group on a given date' })
+  @ApiResponse({ status: 200, type: [AttendanceSheetEntryDto], description: 'Attendance sheet entries' })
+  @ApiResponse({ status: 404, description: 'Group not found' })
+  getAttendanceSheet(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Query('date') date: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.teachersService.getAttendanceSheet(id, groupId, tenantId, date);
+  }
+
+  @Post(':id/attendance')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Mark attendance for students in a group on a given date' })
+  @ApiResponse({ status: 201, description: 'Attendance marked' })
+  @ApiResponse({ status: 404, description: 'Group not found' })
+  markAttendance(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkGroupAttendanceDto,
+    @TenantId() tenantId: string,
+  ) {
+    return this.teachersService.markAttendance(id, tenantId, dto);
   }
 }
