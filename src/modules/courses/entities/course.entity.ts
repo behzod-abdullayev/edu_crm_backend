@@ -56,7 +56,7 @@ export class Course extends AbstractEntity {
   @Column({ name: 'category_id', nullable: true })
   categoryId: string;
 
-  @Column({ type: 'simple-array', default: [] })
+  @Column({ type: 'simple-array', default: '' })
   tags: string[];
 
   @Column({ default: 'uz' })

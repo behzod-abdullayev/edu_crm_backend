@@ -17,7 +17,7 @@ import { TenantId } from '../../common/decorators/tenant.decorator';
 import { UserRole } from '../../shared/enums';
 import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 import { CourseResponseDto } from './dto/course-response.dto';
-import { PaginationDto } from '../../common/utils/pagination.util';
+import { QueryCoursesDto } from './dto/query-courses.dto';
 
 @ApiTags('Courses')
 @ApiBearerAuth('JWT')
@@ -39,7 +39,7 @@ export class CoursesController {
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT)
   @ApiOperation({ summary: 'List all courses' })
   @ApiPaginatedResponse(CourseResponseDto)
-  findAll(@Query() query: PaginationDto, @TenantId() tenantId: string) {
+  findAll(@Query() query: QueryCoursesDto, @TenantId() tenantId: string) {
     return this.coursesService.findAll(tenantId, query);
   }
 

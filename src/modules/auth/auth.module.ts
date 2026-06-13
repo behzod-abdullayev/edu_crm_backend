@@ -7,13 +7,14 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { User } from '../users/entities/user.entity';
+import { Teacher } from '../teachers/entities/teacher.entity';
 import { UsersModule } from '../users/users.module';
 import { MailModule } from '../../mail/mail.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Teacher]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

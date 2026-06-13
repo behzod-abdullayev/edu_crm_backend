@@ -104,7 +104,7 @@ export class Tenant extends AbstractEntity {
   @Column({ type: 'jsonb', name: 'settings', default: {} })
   settings: Record<string, unknown>;
 
-  @Column({ type: 'simple-array', name: 'branches', default: [] })
+  @Column({ type: 'simple-array', name: 'branches', default: '' })
   branches: string[];
 
   // Unified base currency for the tenant (e.g. 'UZS', 'USD'). Used across

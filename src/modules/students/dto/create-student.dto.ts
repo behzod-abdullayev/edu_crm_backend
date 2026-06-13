@@ -17,6 +17,10 @@ export class CreateStudentDto extends CreateUserDto {
 }
 
 export class UpdateStudentDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() firstName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() lastName?: string;
+  @ApiPropertyOptional() @IsOptional() @IsEmail() email?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() parentName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() parentPhone?: string;
   @ApiPropertyOptional() @IsOptional() @IsEmail() parentEmail?: string;

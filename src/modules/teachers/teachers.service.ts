@@ -17,7 +17,7 @@ import {
 } from './dto/teacher-analytics.dto';
 
 interface GroupRow { id: string; }
-interface StudentRow { id: string; first_name: string; last_name: string; }
+interface StudentRow { id: string; firstName: string; lastName: string; }
 interface AttendanceCountRow { total: string; present_count: string; }
 interface MonthAttendanceRow { total: string; present_count: string; }
 interface SubmissionRow { score: number | null; homework_id: string; }
@@ -82,13 +82,47 @@ export class TeachersService {
 
   async update(id: string, dto: UpdateTeacherDto, tenantId: string): Promise<Teacher> {
     const teacher = await this.findOne(id, tenantId);
-    const { status, ...teacherDto } = dto;
-    if (status !== undefined) {
-      await this.usersRepository.update(teacher.userId, { status });
+    const {
+      status, firstName, lastName, middleName, email, phone,
+      gender, language, dateOfBirth, address, city, timezone,
+      specialization, subjects, bio, experienceYears, hireDate,
+      salary, salaryCurrency, paymentType, maxStudents, branch,
+      ...rest
+    } = dto;
+    void rest;
+
+    const userUpdate: Record<string, unknown> = {};
+    if (status !== undefined) userUpdate.status = status;
+    if (firstName !== undefined) userUpdate.firstName = firstName;
+    if (lastName !== undefined) userUpdate.lastName = lastName;
+    if (middleName !== undefined) userUpdate.middleName = middleName;
+    if (email !== undefined) userUpdate.email = email;
+    if (phone !== undefined) userUpdate.phone = phone;
+    if (gender !== undefined) userUpdate.gender = gender;
+    if (language !== undefined) userUpdate.language = language;
+    if (dateOfBirth !== undefined) userUpdate.dateOfBirth = dateOfBirth;
+    if (address !== undefined) userUpdate.address = address;
+    if (city !== undefined) userUpdate.city = city;
+    if (timezone !== undefined) userUpdate.timezone = timezone;
+    if (Object.keys(userUpdate).length > 0) {
+      await this.usersRepository.update(teacher.userId, userUpdate);
     }
-    if (Object.keys(teacherDto).length > 0) {
-      await this.teachersRepository.update(id, teacherDto);
+
+    const teacherUpdate: Record<string, unknown> = {};
+    if (specialization !== undefined) teacherUpdate.specialization = specialization;
+    if (subjects !== undefined) teacherUpdate.subjects = subjects;
+    if (bio !== undefined) teacherUpdate.bio = bio;
+    if (experienceYears !== undefined) teacherUpdate.experienceYears = experienceYears;
+    if (hireDate !== undefined) teacherUpdate.hireDate = new Date(hireDate);
+    if (salary !== undefined) teacherUpdate.salary = salary;
+    if (salaryCurrency !== undefined) teacherUpdate.salaryCurrency = salaryCurrency;
+    if (paymentType !== undefined) teacherUpdate.paymentType = paymentType;
+    if (maxStudents !== undefined) teacherUpdate.maxStudents = maxStudents;
+    if (branch !== undefined) teacherUpdate.branch = branch;
+    if (Object.keys(teacherUpdate).length > 0) {
+      await this.teachersRepository.update(id, teacherUpdate);
     }
+
     return this.findOne(id, tenantId);
   }
 
@@ -125,11 +159,13 @@ export class TeachersService {
   async getStudents(id: string, tenantId: string): Promise<any[]> {
     await this.findOne(id, tenantId);
     return this.dataSource.query(
-      `SELECT DISTINCT u.first_name, u.last_name, u.email, s.student_code, g.name as group_name
-       FROM enrollments e JOIN students s ON s.id = e.student_id JOIN users u ON u.id = s.user_id
-       JOIN groups g ON g.id = e.group_id
-       WHERE g.teacher_id = $1 AND e.tenant_id = $2 AND e.status = 'active'
-       ORDER BY u.last_name`,
+      `SELECT DISTINCT u."firstName", u."lastName", u.email, s.student_code, g.name as group_name
+       FROM group_students gs
+       JOIN students s ON s.id = gs.student_id
+       JOIN users u ON u.id = s.user_id
+       JOIN groups g ON g.id = gs.group_id
+       WHERE g.teacher_id = $1 AND s.tenant_id = $2
+       ORDER BY u."lastName"`,
       [id, tenantId],
     );
   }
@@ -154,11 +190,11 @@ export class TeachersService {
 
     // Unique students
     const uniqueStudentsRows = await this.dataSource.query(
-      `SELECT DISTINCT e.student_id as id, u.first_name, u.last_name
-       FROM enrollments e
-       JOIN students s ON s.id = e.student_id
+      `SELECT DISTINCT gs.student_id as id, u."firstName", u."lastName"
+       FROM group_students gs
+       JOIN students s ON s.id = gs.student_id
        JOIN users u ON u.id = s.user_id
-       WHERE e.group_id = ANY($1::uuid[]) AND e.tenant_id = $2`,
+       WHERE gs.group_id = ANY($1::uuid[]) AND s.tenant_id = $2`,
       [groups.map((g) => g.id), tenantId],
     ) as StudentRow[];
 
@@ -269,7 +305,7 @@ export class TeachersService {
 
       studentPerformance.push({
         studentId: student.id,
-        name: `${student.first_name ?? ''} ${student.last_name ?? ''}`.trim(),
+        name: `${student.firstName ?? ''} ${student.lastName ?? ''}`.trim(),
         avgScore,
         attendanceRate,
       });

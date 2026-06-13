@@ -29,7 +29,6 @@ import { Public } from '../../common/decorators/public.decorator';
 import { User } from '../users/entities/user.entity';
 import { MeResponseDto } from './dto/me-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
-import { getPermissionsForRole } from '../../common/utils/permissions.util';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -130,21 +129,7 @@ export class AuthController {
   @ApiResponse({ status: 200, type: MeResponseDto, description: 'Returns current user with permissions' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMe(@CurrentUser() user: User): Promise<MeResponseDto> {
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      status: user.status,
-      tenantId: user.tenantId,
-      profilePictureUrl: user.avatarUrl ?? null,
-      phone: user.phone ?? null,
-      preferredLanguage: user.language ?? 'uz',
-      twoFactorEnabled: user.twoFaEnabled ?? false,
-      permissions: getPermissionsForRole(user.role),
-      createdAt: user.createdAt,
-    };
+    return this.authService.getMe(user);
   }
 
   @Post('2fa/setup')

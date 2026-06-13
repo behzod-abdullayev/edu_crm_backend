@@ -16,6 +16,7 @@ import { TenantId } from '../../common/decorators/tenant.decorator';
 import { UserRole } from '../../shared/enums';
 import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 import { TeacherResponseDto } from './dto/teacher-response.dto';
+import { TeacherAnalyticsDto } from './dto/teacher-analytics.dto';
 
 @ApiTags('Teachers')
 @ApiBearerAuth('JWT')
@@ -104,15 +105,15 @@ export class TeachersController {
   @Get(':id/analytics')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
   @ApiOperation({
-    summary: 'Get teacher analytics (alias for /stats)',
-    description: 'Returns the same data as /stats. Exists for frontend API contract compatibility.',
+    summary: 'Get teacher analytics',
+    description: 'Returns aggregated performance analytics for a teacher (groups, students, attendance, homework).',
   })
-  @ApiResponse({ status: 200, description: 'Teacher analytics and performance data' })
+  @ApiResponse({ status: 200, type: TeacherAnalyticsDto, description: 'Teacher analytics and performance data' })
   @ApiResponse({ status: 404, description: 'Teacher not found' })
   getAnalytics(
     @Param('id', ParseUUIDPipe) id: string,
     @TenantId() tenantId: string,
   ) {
-    return this.teachersService.getStats(id, tenantId);
+    return this.teachersService.getAnalytics(id, tenantId);
   }
 }

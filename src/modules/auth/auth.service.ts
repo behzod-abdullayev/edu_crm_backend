@@ -14,6 +14,7 @@ import * as speakeasy from 'speakeasy';
 import * as qrcode from 'qrcode';
 
 import { User } from '../users/entities/user.entity';
+import { Teacher } from '../teachers/entities/teacher.entity';
 import { UserRole, UserStatus } from '../../shared/enums';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
@@ -39,6 +40,9 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepo: Repository<User>,
+
+    @InjectRepository(Teacher)
+    private teacherRepo: Repository<Teacher>,
 
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -87,6 +91,39 @@ export class AuthService {
     });
 
     return user;
+  }
+
+  // ====================== USER PAYLOAD (/auth/me, login, refresh) ======================
+  async buildUserPayload(user: User): Promise<MeResponseDto> {
+    let teacherId: string | null = null;
+
+    if (user.role === UserRole.TEACHER) {
+      const teacher = await this.teacherRepo.findOne({
+        where: { userId: user.id, tenantId: user.tenantId },
+      });
+      teacherId = teacher?.id ?? null;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      status: user.status,
+      tenantId: user.tenantId,
+      profilePictureUrl: user.avatarUrl ?? null,
+      phone: user.phone ?? null,
+      preferredLanguage: user.language ?? 'uz',
+      twoFactorEnabled: user.twoFaEnabled ?? false,
+      permissions: getPermissionsForRole(user.role),
+      createdAt: user.createdAt,
+      teacherId,
+    };
+  }
+
+  async getMe(user: User): Promise<MeResponseDto> {
+    return this.buildUserPayload(user);
   }
 
   // ====================== REGISTER ======================
@@ -163,21 +200,7 @@ export class AuthService {
 
     this.eventEmitter.emit('auth.login', { userId: user.id, ip });
 
-    const userPayload: MeResponseDto = {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      status: user.status,
-      tenantId: user.tenantId,
-      profilePictureUrl: user.avatarUrl ?? null,
-      phone: user.phone ?? null,
-      preferredLanguage: user.language ?? 'uz',
-      twoFactorEnabled: user.twoFaEnabled ?? false,
-      permissions: getPermissionsForRole(user.role),
-      createdAt: user.createdAt,
-    };
+    const userPayload = await this.buildUserPayload(user);
 
     return {
       accessToken: tokens.accessToken,
@@ -237,21 +260,7 @@ export class AuthService {
 
       const tokens = await this.generateTokens(user);
 
-      const userPayload: MeResponseDto = {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        status: user.status,
-        tenantId: user.tenantId,
-        profilePictureUrl: user.avatarUrl ?? null,
-        phone: user.phone ?? null,
-        preferredLanguage: user.language ?? 'uz',
-        twoFactorEnabled: user.twoFaEnabled ?? false,
-        permissions: getPermissionsForRole(user.role),
-        createdAt: user.createdAt,
-      };
+      const userPayload = await this.buildUserPayload(user);
 
       return {
         accessToken: tokens.accessToken,

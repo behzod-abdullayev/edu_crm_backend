@@ -17,7 +17,7 @@ export class ChatRoom extends AbstractEntity {
   @Column({ name: 'room_type', default: 'direct' })
   roomType: string;
 
-  @Column({ type: 'simple-array', name: 'participant_ids', default: [] })
+  @Column({ type: 'simple-array', name: 'participant_ids', default: '' })
   participantIds: string[];
 
   @Column({ name: 'last_message_at', type: 'timestamp', nullable: true })

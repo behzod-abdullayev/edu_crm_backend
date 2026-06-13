@@ -20,7 +20,7 @@ export class Teacher extends AbstractEntity {
   @Column({ name: 'specialization', nullable: true })
   specialization: string;
 
-  @Column({ type: 'simple-array', name: 'subjects', default: [] })
+  @Column({ type: 'simple-array', name: 'subjects', default: '' })
   subjects: string[];
 
   @Column({ name: 'bio', type: 'text', nullable: true })

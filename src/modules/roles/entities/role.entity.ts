@@ -12,7 +12,7 @@ export class CustomRole extends AbstractEntity {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'simple-array', name: 'permissions', default: [] })
+  @Column({ type: 'simple-array', name: 'permissions', default: '' })
   permissions: string[];
 
   @Column({ name: 'is_active', default: true })

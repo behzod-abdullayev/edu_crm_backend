@@ -44,4 +44,10 @@ export class MeResponseDto {
 
   @ApiProperty({ description: 'Account creation timestamp' })
   createdAt: Date;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Teacher profile ID (teachers.id), present only for users with the teacher role. Required for /teachers/:id/* endpoints.',
+  })
+  teacherId: string | null;
 }

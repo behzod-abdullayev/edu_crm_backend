@@ -17,6 +17,8 @@ export class CreateCourseDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() certificateEnabled?: boolean;
   @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() tags?: string[];
   @ApiPropertyOptional({ enum: CourseStatus }) @IsOptional() @IsEnum(CourseStatus) status?: CourseStatus;
+  @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() thumbnailUrl?: string;
 }
 
 export class CreateLessonDto {
@@ -33,14 +35,4 @@ export class CreateLessonDto {
 export class EnrollStudentDto {
   @ApiProperty() @IsUUID() studentId: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() discountPercent?: number;
-}
-
-export class QueryCoursesDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
-  @ApiPropertyOptional() @IsOptional() @IsUUID() teacherId?: string;
-  @ApiPropertyOptional({ enum: CourseStatus }) @IsOptional() @IsEnum(CourseStatus) status?: CourseStatus;
-  @ApiPropertyOptional() @IsOptional() page?: number;
-  @ApiPropertyOptional() @IsOptional() limit?: number;
-  @ApiPropertyOptional() @IsOptional() sortBy?: string;
-  @ApiPropertyOptional() @IsOptional() sortOrder?: 'ASC' | 'DESC';
 }

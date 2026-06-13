@@ -8,7 +8,6 @@ import { CreateModuleDto } from './dto/create-module.dto';
 import { Lesson } from './entities/lesson.entity';
 import { Enrollment } from './entities/enrollment.entity';
 import { CourseModule } from './entities/module.entity';
-import { generateUniqueSlug } from '../../common/utils/slug.util';
 import { PaginatedResult } from '../../shared/dtos/pagination.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
@@ -46,9 +45,7 @@ export class CoursesService {
   }
 
   async create(dto: CreateCourseDto, tenantId: string): Promise<Course> {
-    const existingSlugs = await this.dataSource.query(`SELECT slug FROM courses WHERE tenant_id = $1`, [tenantId]);
-    const slug = generateUniqueSlug(dto.title, existingSlugs.map((r: { slug: string }) => r.slug));
-    const course = this.coursesRepository.create({ ...dto, tenantId, slug } as any);
+    const course = this.coursesRepository.create({ ...dto, tenantId } as any);
     const saved = await this.coursesRepository.save(course) as unknown as Course;
     this.eventEmitter.emit('course.created', { course: saved, tenantId });
     return saved;
