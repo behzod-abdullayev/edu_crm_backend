@@ -78,6 +78,61 @@ export class AnalyticsService {
     };
   }
 
+  async getPerformance(tenantId: string, studentId?: string, groupId?: string): Promise<{
+    gradeTrend: { month: string; average: number }[];
+    attendanceTrend: { month: string; rate: number }[];
+  }> {
+    const gradeTrend: { month: string; average: number }[] = [];
+    const attendanceTrend: { month: string; rate: number }[] = [];
+
+    if (!studentId && !groupId) {
+      return { gradeTrend, attendanceTrend };
+    }
+
+    const filterParam = studentId ?? groupId;
+    const gradeFilterSql = studentId ? 'hs.student_id = $1::text' : 'hw.group_id = $1';
+    const attendanceFilterSql = studentId ? 'student_id = $1' : 'group_id = $1';
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+
+      const gradeRows = await this.dataSource.query(
+        `SELECT AVG(hs.score::numeric) AS avg_score
+         FROM homework_submissions hs
+         JOIN homeworks hw ON hw.id = hs.homework_id
+         WHERE ${gradeFilterSql} AND hw.tenant_id = $2 AND hs.score IS NOT NULL
+           AND EXTRACT(YEAR FROM hs.graded_at) = $3 AND EXTRACT(MONTH FROM hs.graded_at) = $4`,
+        [filterParam, tenantId, year, month],
+      ) as Array<{ avg_score: number | null }>;
+
+      const average =
+        gradeRows[0]?.avg_score !== null && gradeRows[0]?.avg_score !== undefined
+          ? Math.round(Number(gradeRows[0].avg_score) * 10) / 10
+          : 0;
+      gradeTrend.push({ month: monthKey, average });
+
+      const attRows = await this.dataSource.query(
+        `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status = 'present')::int AS present_count
+         FROM attendance
+         WHERE ${attendanceFilterSql} AND tenant_id = $2
+           AND EXTRACT(YEAR FROM date) = $3 AND EXTRACT(MONTH FROM date) = $4`,
+        [filterParam, tenantId, year, month],
+      ) as Array<{ total: string; present_count: string }>;
+
+      const total = Number(attRows[0]?.total ?? 0);
+      const present = Number(attRows[0]?.present_count ?? 0);
+      const rate = total > 0 ? Math.round((present / total) * 100 * 10) / 10 : 0;
+      attendanceTrend.push({ month: monthKey, rate });
+    }
+
+    return { gradeTrend, attendanceTrend };
+  }
+
   async getStudentAnalytics(tenantId: string, filters: AnalyticsFilterDto): Promise<{
     topStudents: unknown[];
     atRisk: unknown[];

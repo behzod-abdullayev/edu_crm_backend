@@ -20,6 +20,17 @@ export class AnalyticsController {
     return this.analyticsService.getOverview(user.tenantId, from ? new Date(from) : undefined, to ? new Date(to) : undefined);
   }
 
+  @Get('performance')
+  @ApiOperation({ summary: 'Grade and attendance trend for a student or group' })
+  @ApiResponse({ status: 200, description: 'Returns last 6 months of grade and attendance trend data' })
+  getPerformance(
+    @CurrentUser() user: User,
+    @Query('studentId') studentId?: string,
+    @Query('groupId') groupId?: string,
+  ) {
+    return this.analyticsService.getPerformance(user.tenantId, studentId, groupId);
+  }
+
   @Get('students')
   @ApiOperation({ summary: 'Student analytics' })
   @ApiResponse({ status: 200, description: 'Returns student analytics data' })
