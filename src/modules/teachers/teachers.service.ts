@@ -20,6 +20,7 @@ import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 import { AttendanceStatus } from '../../shared/enums';
 import { TeacherHomeworkItemDto, TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
 import { TeacherLessonItemDto, TeacherLessonListDto } from './dto/teacher-lesson-item.dto';
+import { TeacherStudentItemDto, TeacherStudentListDto } from './dto/teacher-student-item.dto';
 
 interface GroupRow { id: string; }
 interface GroupListRow {
@@ -64,6 +65,17 @@ interface TeacherHomeworkRow {
 }
 interface HomeworkSubmissionCountRow { homeworkId: string; total: string; graded: string; }
 interface HomeworkCountRow { assigned: string; graded: string; pending: string; }
+interface TeacherStudentRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  status: string;
+  groupName: string | null;
+}
+interface StudentPerfRow { avg_score: number | null; att_total: number; att_present: number; }
 interface TeacherGroupCourseRow { id: string; name: string; courseId: string; }
 interface TeacherLessonRow {
   id: string;
@@ -235,18 +247,90 @@ export class TeachersService {
     );
   }
 
-  async getStudents(id: string, tenantId: string): Promise<any[]> {
+  async getStudents(
+    id: string,
+    tenantId: string,
+    search: string | undefined,
+    page: number,
+    limit: number,
+  ): Promise<TeacherStudentListDto> {
     await this.findOne(id, tenantId);
-    return this.dataSource.query(
-      `SELECT DISTINCT u."firstName", u."lastName", u.email, s.student_code, g.name as group_name
+
+    const offset = (page - 1) * limit;
+    const searchPattern = search ? `%${search}%` : null;
+
+    const countRows = await this.dataSource.query(
+      `SELECT COUNT(DISTINCT s.id)::int as total
        FROM group_students gs
        JOIN students s ON s.id = gs.student_id
        JOIN users u ON u.id = s.user_id
        JOIN groups g ON g.id = gs.group_id
-       WHERE g.teacher_id = $1 AND s.tenant_id = $2
-       ORDER BY u."lastName"`,
-      [id, tenantId],
-    );
+       WHERE g.teacher_id = $1 AND s.tenant_id = $2 AND g.deleted_at IS NULL
+         AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3 OR u.email ILIKE $3 OR s.student_code ILIKE $3)`,
+      [id, tenantId, searchPattern],
+    ) as Array<{ total: number }>;
+    const total = countRows[0]?.total ?? 0;
+
+    const rows = await this.dataSource.query(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (s.id)
+           s.id, u."firstName", u."lastName", u.email, u.phone,
+           u.avatar_url as "avatarUrl", u.status, g.name as "groupName"
+         FROM group_students gs
+         JOIN students s ON s.id = gs.student_id
+         JOIN users u ON u.id = s.user_id
+         JOIN groups g ON g.id = gs.group_id
+         WHERE g.teacher_id = $1 AND s.tenant_id = $2 AND g.deleted_at IS NULL
+           AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3 OR u.email ILIKE $3 OR s.student_code ILIKE $3)
+         ORDER BY s.id, g.name
+       ) sub
+       ORDER BY sub."lastName", sub."firstName"
+       LIMIT $4 OFFSET $5`,
+      [id, tenantId, searchPattern, limit, offset],
+    ) as TeacherStudentRow[];
+
+    const data: TeacherStudentItemDto[] = [];
+    for (const r of rows) {
+      const perfRows = await this.dataSource.query(
+        `SELECT
+           AVG(hs.score::numeric) AS avg_score,
+           COUNT(att.id)::int AS att_total,
+           COUNT(att.id) FILTER (WHERE att.status = 'present')::int AS att_present
+         FROM homeworks hw
+         JOIN homework_submissions hs ON hs.homework_id = hw.id AND hs.student_id = $1::text
+         LEFT JOIN attendance att ON att.student_id = $1::uuid AND att.marked_by = $2 AND att.tenant_id = $3
+         WHERE hw.teacher_id = $2 AND hw.tenant_id = $3`,
+        [r.id, id, tenantId],
+      ) as StudentPerfRow[];
+
+      const perf = perfRows[0];
+      const attTotal = Number(perf?.att_total ?? 0);
+      const attPresent = Number(perf?.att_present ?? 0);
+
+      data.push({
+        id: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        email: r.email,
+        ...(r.phone ? { phone: r.phone } : {}),
+        ...(r.avatarUrl ? { avatarUrl: r.avatarUrl } : {}),
+        status: r.status,
+        ...(r.groupName ? { groupName: r.groupName } : {}),
+        attendanceRate: attTotal > 0 ? Math.round((attPresent / attTotal) * 100 * 10) / 10 : 0,
+        averageGrade:
+          perf?.avg_score !== null && perf?.avg_score !== undefined
+            ? Math.round(Number(perf.avg_score) * 10) / 10
+            : 0,
+      });
+    }
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+    };
   }
 
   async getStats(id: string, tenantId: string): Promise<any> {

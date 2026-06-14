@@ -21,6 +21,7 @@ import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
 import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 import { TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
 import { TeacherLessonListDto } from './dto/teacher-lesson-item.dto';
+import { TeacherStudentListDto } from './dto/teacher-student-item.dto';
 
 @ApiTags('Teachers')
 @ApiBearerAuth('JWT')
@@ -92,9 +93,17 @@ export class TeachersController {
   @Get(':id/students')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
   @ApiOperation({ summary: 'Get all students across teacher groups' })
-  @ApiResponse({ status: 200, description: 'Students in teacher groups', isArray: true })
-  getStudents(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
-    return this.teachersService.getStudents(id, tenantId);
+  @ApiResponse({ status: 200, type: TeacherStudentListDto, description: 'Paginated list of students in teacher groups' })
+  getStudents(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.teachersService.getStudents(id, tenantId, search, pageNum, limitNum);
   }
 
   @Get(':id/stats')
