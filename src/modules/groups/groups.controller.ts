@@ -46,6 +46,22 @@ export class GroupsController {
     return this.groupsService.findOne(id, tenantId);
   }
 
+  @Get(':id/homework')
+  @ApiOperation({ summary: 'Get homework assignments for this group' })
+  @ApiResponse({ status: 200, description: 'List of homework assignments', isArray: true })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  getHomework(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
+    return this.groupsService.getHomework(id, tenantId);
+  }
+
+  @Get(':id/attendance')
+  @ApiOperation({ summary: 'Get attendance records for this group' })
+  @ApiResponse({ status: 200, description: 'Attendance records grouped by date' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  getAttendance(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
+    return this.groupsService.getAttendance(id, tenantId);
+  }
+
   @Patch(':id')
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Update group' })
