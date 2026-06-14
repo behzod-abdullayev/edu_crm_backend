@@ -19,9 +19,10 @@ import { TenantId } from '../../common/decorators/tenant.decorator';
 import { UserRole } from '../../shared/enums';
 import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 import { StudentResponseDto } from './dto/student-response.dto';
+import { StudentDetailResponseDto } from './dto/student-detail-response.dto';
 import { StudentPerformanceDto } from './dto/student-performance.dto';
-import { GradeResponseDto } from './dto/grade-response.dto';
-import { AttendanceResponseDto } from './dto/attendance-response.dto';
+import { CourseGradesSummaryDto } from './dto/course-grades-summary.dto';
+import { StudentAttendanceRecordDto } from './dto/student-attendance-record.dto';
 import { EnrolledCourseResponseDto } from './dto/enrolled-course-response.dto';
 import { StudentScheduleEventDto } from './dto/student-schedule-event.dto';
 
@@ -72,10 +73,10 @@ export class StudentsController {
   @Get(':id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get student profile' })
-  @ApiResponse({ status: 200, type: StudentResponseDto, description: 'Student profile' })
+  @ApiResponse({ status: 200, type: StudentDetailResponseDto, description: 'Student profile with summary stats' })
   @ApiResponse({ status: 404, description: 'Not found' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
-    return this.studentsService.findOne(id, tenantId);
+    return this.studentsService.getDetail(id, tenantId);
   }
 
   @Patch(':id')
@@ -162,7 +163,7 @@ export class StudentsController {
   @ApiOperation({ summary: 'Get student attendance records' })
   @ApiResponse({
     status: 200,
-    type: AttendanceResponseDto,
+    type: StudentAttendanceRecordDto,
     isArray: true,
     description: 'List of attendance records for the student',
   })
@@ -172,18 +173,18 @@ export class StudentsController {
     @TenantId() tenantId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-  ): Promise<unknown> {
+  ) {
     return this.studentsService.getAttendance(id, tenantId, { from, to });
   }
 
   @Get(':id/grades')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT)
-  @ApiOperation({ summary: 'Get student grades (graded homework submissions)' })
+  @ApiOperation({ summary: 'Get student grades, grouped by course' })
   @ApiResponse({
     status: 200,
-    type: GradeResponseDto,
+    type: CourseGradesSummaryDto,
     isArray: true,
-    description: 'List of graded homework submissions',
+    description: 'Per-course grade summaries with individual grade entries',
   })
   @ApiResponse({ status: 404, description: 'Student not found' })
   getGrades(
