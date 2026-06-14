@@ -72,7 +72,16 @@ export class TenantsService {
     if (!tenant) {
       throw new NotFoundException(`Tenant with slug "${slug}" not found`);
     }
+    return this.toPublicConfigDto(tenant);
+  }
 
+  /** Return public branding and feature config for the caller's own tenant (auth required) */
+  async getPublicConfigByTenantId(tenantId: string): Promise<TenantPublicConfigDto> {
+    const tenant = await this.findOne(tenantId);
+    return this.toPublicConfigDto(tenant);
+  }
+
+  private toPublicConfigDto(tenant: Tenant): TenantPublicConfigDto {
     const flags: Partial<TenantFeatureFlags> = tenant.featureFlags ?? {};
 
     return {

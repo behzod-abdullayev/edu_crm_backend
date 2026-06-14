@@ -25,6 +25,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { UserRole } from '../../shared/enums';
 import { Tenant, TenantFeatureFlags } from './entities/tenant.entity';
 import { TenantPublicConfigDto } from './dto/tenant-public-config.dto';
+import { TenantId } from '../../common/decorators/tenant.decorator';
 
 @ApiTags('Tenants')
 @ApiBearerAuth('JWT')
@@ -51,6 +52,20 @@ export class TenantsController {
       throw new BadRequestException('slug query parameter is required');
     }
     return this.tenantsService.getPublicConfig(slug);
+  }
+
+  /**
+   * Authenticated endpoint — any logged-in user (any role) can fetch their own
+   * tenant's branding and feature flags. Used by the frontend to load feature
+   * flags on hosts where the subdomain-based slug cannot be determined (e.g. localhost).
+   * Must be declared before ':id' so NestJS does not match "config" as an id.
+   */
+  @Roles()
+  @Get('config/mine')
+  @ApiOperation({ summary: "Get the current user's tenant public configuration" })
+  @ApiResponse({ status: 200, type: TenantPublicConfigDto, description: 'Tenant public config' })
+  async getMyConfig(@TenantId() tenantId: string): Promise<TenantPublicConfigDto> {
+    return this.tenantsService.getPublicConfigByTenantId(tenantId);
   }
 
   @Post()
