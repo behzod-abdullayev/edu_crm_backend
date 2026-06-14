@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcryptjs';
 import { Teacher } from './entities/teacher.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { QueryTeachersDto } from './dto/query-teachers.dto';
@@ -152,8 +153,30 @@ export class TeachersService {
     });
   }
 
-  async update(id: string, dto: UpdateTeacherDto, tenantId: string): Promise<Teacher> {
+  async update(id: string, dto: UpdateTeacherDto, tenantId: string, requestingUser: User): Promise<Teacher> {
     const teacher = await this.findOne(id, tenantId);
+
+    if (requestingUser.role === UserRole.TEACHER) {
+      if (teacher.userId !== requestingUser.id) {
+        throw new ForbiddenException('You can only update your own profile');
+      }
+      // Self-service profile edit: teachers may only change their own
+      // contact/bio fields, not employment terms (salary, status, branch, ...).
+      const { firstName, lastName, phone, bio, language } = dto;
+      const userUpdate: Record<string, unknown> = {};
+      if (firstName !== undefined) userUpdate.firstName = firstName;
+      if (lastName !== undefined) userUpdate.lastName = lastName;
+      if (phone !== undefined) userUpdate.phone = phone;
+      if (language !== undefined) userUpdate.language = language;
+      if (Object.keys(userUpdate).length > 0) {
+        await this.usersRepository.update(teacher.userId, userUpdate);
+      }
+      if (bio !== undefined) {
+        await this.teachersRepository.update(id, { bio });
+      }
+      return this.findOne(id, tenantId);
+    }
+
     const {
       status, firstName, lastName, middleName, email, phone,
       gender, language, dateOfBirth, address, city, timezone,

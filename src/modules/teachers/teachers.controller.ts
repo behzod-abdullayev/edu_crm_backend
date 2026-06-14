@@ -58,12 +58,18 @@ export class TeachersController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
   @ApiOperation({ summary: 'Update teacher profile' })
   @ApiResponse({ status: 200, type: TeacherResponseDto, description: 'Teacher updated' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Not found' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTeacherDto, @TenantId() tenantId: string) {
-    return this.teachersService.update(id, dto, tenantId);
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTeacherDto,
+    @TenantId() tenantId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.teachersService.update(id, dto, tenantId, user);
   }
 
   @Delete(':id')
