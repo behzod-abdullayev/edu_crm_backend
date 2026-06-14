@@ -22,6 +22,22 @@ export class AttendanceByMonthDto {
   rate: number;
 }
 
+export class AttendanceTrendItemDto {
+  @ApiProperty({ example: '2024-01' })
+  date: string;
+
+  @ApiProperty({ example: 87.5 })
+  rate: number;
+}
+
+export class GradeTrendItemDto {
+  @ApiProperty({ example: '2024-01' })
+  date: string;
+
+  @ApiProperty({ example: 82.3 })
+  avg: number;
+}
+
 export class HomeworkStatsDto {
   @ApiProperty()
   assigned: number;
@@ -51,6 +67,12 @@ export class TeacherAnalyticsDto {
 
   @ApiProperty({ type: [AttendanceByMonthDto] })
   attendanceByMonth: AttendanceByMonthDto[];
+
+  @ApiProperty({ type: [AttendanceTrendItemDto] })
+  attendanceTrend: AttendanceTrendItemDto[];
+
+  @ApiProperty({ type: [GradeTrendItemDto] })
+  gradeTrend: GradeTrendItemDto[];
 
   @ApiProperty({ type: [StudentPerformanceItemDto] })
   studentPerformance: StudentPerformanceItemDto[];

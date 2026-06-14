@@ -13,6 +13,8 @@ import { PaginatedResult } from '../../shared/dtos/pagination.dto';
 import {
   TeacherAnalyticsDto,
   AttendanceByMonthDto,
+  AttendanceTrendItemDto,
+  GradeTrendItemDto,
   StudentPerformanceItemDto,
 } from './dto/teacher-analytics.dto';
 import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
@@ -47,6 +49,7 @@ interface GroupOwnershipRow { id: string; }
 interface ExistingAttendanceRow { id: string; }
 interface AttendanceCountRow { total: string; present_count: string; }
 interface MonthAttendanceRow { total: string; present_count: string; }
+interface MonthGradeRow { avg_score: number | null; }
 interface SubmissionRow { score: number | null; homework_id: string; }
 interface TeacherHomeworkRow {
   id: string;
@@ -415,6 +418,8 @@ export class TeachersService {
 
     // Attendance by month (last 6 months)
     const attendanceByMonth: AttendanceByMonthDto[] = [];
+    const attendanceTrend: AttendanceTrendItemDto[] = [];
+    const gradeTrend: GradeTrendItemDto[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
       d.setDate(1);
@@ -439,6 +444,25 @@ export class TeachersService {
       const mPresent = Number(monthRows[0]?.present_count ?? 0);
       const rate = mTotal > 0 ? Math.round((mPresent / mTotal) * 100 * 10) / 10 : 0;
       attendanceByMonth.push({ month: monthKey, rate });
+      attendanceTrend.push({ date: monthKey, rate });
+
+      const gradeRows = await this.dataSource.query(
+        `SELECT AVG(hs.score::numeric) AS avg_score
+         FROM homework_submissions hs
+         JOIN homeworks hw ON hw.id = hs.homework_id
+         WHERE hw.teacher_id = $1
+           AND hw.tenant_id = $2
+           AND hs.score IS NOT NULL
+           AND EXTRACT(YEAR FROM hs.graded_at) = $3
+           AND EXTRACT(MONTH FROM hs.graded_at) = $4`,
+        [teacherId, tenantId, year, month],
+      ) as MonthGradeRow[];
+
+      const avg =
+        gradeRows[0]?.avg_score !== null && gradeRows[0]?.avg_score !== undefined
+          ? Math.round(Number(gradeRows[0].avg_score) * 10) / 10
+          : 0;
+      gradeTrend.push({ date: monthKey, avg });
     }
 
     // Student performance (top 20)
@@ -481,6 +505,8 @@ export class TeachersService {
       avgHomeworkScore,
       homeworkStats: { assigned, graded, pending },
       attendanceByMonth,
+      attendanceTrend,
+      gradeTrend,
       studentPerformance,
     };
   }
