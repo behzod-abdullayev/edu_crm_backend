@@ -19,6 +19,7 @@ import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
 import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 import { AttendanceStatus } from '../../shared/enums';
 import { TeacherHomeworkItemDto, TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
+import { TeacherLessonItemDto, TeacherLessonListDto } from './dto/teacher-lesson-item.dto';
 
 interface GroupRow { id: string; }
 interface GroupListRow {
@@ -63,6 +64,21 @@ interface TeacherHomeworkRow {
 }
 interface HomeworkSubmissionCountRow { homeworkId: string; total: string; graded: string; }
 interface HomeworkCountRow { assigned: string; graded: string; pending: string; }
+interface TeacherGroupCourseRow { id: string; name: string; courseId: string; }
+interface TeacherLessonRow {
+  id: string;
+  title: string;
+  description: string | null;
+  courseId: string;
+  type: string;
+  videoUrl: string | null;
+  fileUrl: string | null;
+  order: number;
+  durationMinutes: number;
+  isPublished: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 @Injectable()
 export class TeachersService {
@@ -530,6 +546,88 @@ export class TeachersService {
         submissionCount: counts.total,
         gradedCount: counts.graded,
         status: dueDate && dueDate < now ? 'closed' : 'published',
+        createdAt: new Date(r.createdAt).toISOString(),
+        updatedAt: new Date(r.updatedAt).toISOString(),
+      };
+    });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+    };
+  }
+
+  // ─── NEW: Lessons list ──────────────────────────────────────────────────────
+
+  async getLessons(
+    teacherId: string,
+    tenantId: string,
+    groupId: string | undefined,
+    page: number,
+    limit: number,
+  ): Promise<TeacherLessonListDto> {
+    await this.findOne(teacherId, tenantId);
+
+    const groupRows = await this.dataSource.query(
+      `SELECT g.id, g.name, g.course_id as "courseId"
+       FROM groups g
+       WHERE g.teacher_id = $1 AND g.tenant_id = $2 AND g.deleted_at IS NULL AND g.course_id IS NOT NULL`,
+      [teacherId, tenantId],
+    ) as TeacherGroupCourseRow[];
+
+    const relevantGroups = groupId ? groupRows.filter((g) => g.id === groupId) : groupRows;
+
+    const courseToGroup = new Map<string, { groupId: string; groupName: string }>();
+    for (const g of relevantGroups) {
+      if (!courseToGroup.has(g.courseId)) {
+        courseToGroup.set(g.courseId, { groupId: g.id, groupName: g.name });
+      }
+    }
+
+    const courseIds = [...courseToGroup.keys()];
+    if (courseIds.length === 0) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    const offset = (page - 1) * limit;
+
+    const countRows = await this.dataSource.query(
+      `SELECT COUNT(*)::int as total FROM lessons
+       WHERE course_id = ANY($1::uuid[]) AND tenant_id = $2 AND deleted_at IS NULL`,
+      [courseIds, tenantId],
+    ) as Array<{ total: number }>;
+    const total = countRows[0]?.total ?? 0;
+
+    const rows = await this.dataSource.query(
+      `SELECT l.id, l.title, l.content as description, l.course_id as "courseId",
+              l.type, l.video_url as "videoUrl", l.file_url as "fileUrl",
+              l.sort_order as "order", l.duration_minutes as "durationMinutes",
+              l.is_published as "isPublished",
+              l.created_at as "createdAt", l.updated_at as "updatedAt"
+       FROM lessons l
+       WHERE l.course_id = ANY($1::uuid[]) AND l.tenant_id = $2 AND l.deleted_at IS NULL
+       ORDER BY l.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [courseIds, tenantId, limit, offset],
+    ) as TeacherLessonRow[];
+
+    const data: TeacherLessonItemDto[] = rows.map((r) => {
+      const group = courseToGroup.get(r.courseId);
+      return {
+        id: r.id,
+        title: r.title,
+        ...(r.description ? { description: r.description } : {}),
+        courseId: r.courseId,
+        ...(group ? { groupId: group.groupId, groupName: group.groupName } : {}),
+        type: r.type,
+        ...(r.videoUrl ? { videoUrl: r.videoUrl } : {}),
+        ...(r.fileUrl ? { fileUrl: r.fileUrl } : {}),
+        order: Number(r.order),
+        durationMinutes: Number(r.durationMinutes),
+        isPublished: r.isPublished,
         createdAt: new Date(r.createdAt).toISOString(),
         updatedAt: new Date(r.updatedAt).toISOString(),
       };

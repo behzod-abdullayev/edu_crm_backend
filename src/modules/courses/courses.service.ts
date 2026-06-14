@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CoursesRepository } from './courses.repository';
 import { Course } from './entities/course.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { CreateLessonFromGroupDto } from './dto/create-lesson-from-group.dto';
 import { CreateModuleDto } from './dto/create-module.dto';
 import { Lesson } from './entities/lesson.entity';
 import { Enrollment } from './entities/enrollment.entity';
@@ -14,6 +15,7 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { QueryCoursesDto } from './dto/query-courses.dto';
 import { EnrollmentResponseDto } from './dto/enrollment-response.dto';
 import { InjectRepository } from '@nestjs/typeorm';
+import { LessonType } from '../../shared/enums';
 
 @Injectable()
 export class CoursesService {
@@ -77,6 +79,29 @@ export class CoursesService {
   async addLesson(courseId: string, dto: CreateLessonDto, tenantId: string): Promise<Lesson> {
     await this.findOne(courseId, tenantId);
     const lesson = this.lessonsRepo.create({ ...dto, courseId } as any);
+    return this.lessonsRepo.save(lesson) as unknown as Promise<Lesson>;
+  }
+
+  async addLessonFromGroup(dto: CreateLessonFromGroupDto, tenantId: string): Promise<Lesson> {
+    const groupRows = await this.dataSource.query(
+      `SELECT course_id as "courseId" FROM groups WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [dto.groupId, tenantId],
+    ) as Array<{ courseId: string | null }>;
+
+    if (groupRows.length === 0 || !groupRows[0].courseId) {
+      throw new NotFoundException('Group or its course not found');
+    }
+
+    const courseId = groupRows[0].courseId;
+    const lesson = this.lessonsRepo.create({
+      courseId,
+      tenantId,
+      title: dto.title,
+      content: dto.description,
+      type: dto.videoUrl ? LessonType.VIDEO : LessonType.TEXT,
+      videoUrl: dto.videoUrl,
+      ...(dto.fileKey ? { fileUrl: `/api/v1/files/serve/${dto.fileKey}` } : {}),
+    } as any);
     return this.lessonsRepo.save(lesson) as unknown as Promise<Lesson>;
   }
 
