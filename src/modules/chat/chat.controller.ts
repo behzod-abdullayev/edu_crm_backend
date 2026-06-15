@@ -1,10 +1,21 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Query, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  Query,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { TenantId } from '../../common/decorators/tenant.decorator';
 import { User } from '../users/entities/user.entity';
+import { ConversationDto, ConversationMessageDto } from './dto/conversation.dto';
 
 @ApiTags('Chat')
 @ApiBearerAuth('JWT')
@@ -15,7 +26,11 @@ export class ChatController {
 
   @Post('rooms/direct')
   @ApiOperation({ summary: 'Create or get direct chat room' })
-  getDirectRoom(@Body('userId') userId: string, @CurrentUser() user: User, @TenantId() tenantId: string) {
+  getDirectRoom(
+    @Body('userId') userId: string,
+    @CurrentUser() user: User,
+    @TenantId() tenantId: string,
+  ) {
     return this.chatService.createOrGetDirectRoom(user.id, userId, tenantId);
   }
 
@@ -23,7 +38,8 @@ export class ChatController {
   @ApiOperation({ summary: 'Create group chat room' })
   createGroup(
     @Body() body: { name: string; participantIds: string[] },
-    @CurrentUser() user: User, @TenantId() tenantId: string,
+    @CurrentUser() user: User,
+    @TenantId() tenantId: string,
   ) {
     return this.chatService.createGroupRoom(body.name, body.participantIds, tenantId, user.id);
   }
@@ -39,7 +55,8 @@ export class ChatController {
   sendMessage(
     @Param('roomId', ParseUUIDPipe) roomId: string,
     @Body() body: { content: string; type?: string },
-    @CurrentUser() user: User, @TenantId() tenantId: string,
+    @CurrentUser() user: User,
+    @TenantId() tenantId: string,
   ) {
     return this.chatService.sendMessage(roomId, user.id, tenantId, body.content);
   }
@@ -49,7 +66,8 @@ export class ChatController {
   getMessages(
     @Param('roomId', ParseUUIDPipe) roomId: string,
     @TenantId() tenantId: string,
-    @Query('page') page?: number, @Query('limit') limit?: number,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
     return this.chatService.getMessages(roomId, tenantId, page, limit);
   }
@@ -62,5 +80,37 @@ export class ChatController {
     @TenantId() tenantId: string,
   ) {
     return this.chatService.deleteMessage(id, user.id, tenantId);
+  }
+
+  @Get('conversations')
+  @ApiOperation({ summary: 'Get my conversations (1:1 and group)' })
+  @ApiResponse({ status: 200, type: [ConversationDto] })
+  getConversations(@CurrentUser() user: User, @TenantId() tenantId: string) {
+    return this.chatService.getConversations(user.id, tenantId);
+  }
+
+  @Get('conversations/:id/messages')
+  @ApiOperation({ summary: 'Get messages for a conversation' })
+  @ApiResponse({ status: 200, type: [ConversationMessageDto] })
+  getConversationMessages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+    @TenantId() tenantId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.chatService.getConversationMessages(id, user.id, tenantId, page, limit);
+  }
+
+  @Post('conversations/:id/messages')
+  @ApiOperation({ summary: 'Send a message in a conversation' })
+  @ApiResponse({ status: 201, type: ConversationMessageDto })
+  sendConversationMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('content') content: string,
+    @CurrentUser() user: User,
+    @TenantId() tenantId: string,
+  ) {
+    return this.chatService.sendConversationMessage(id, user.id, tenantId, content);
   }
 }
