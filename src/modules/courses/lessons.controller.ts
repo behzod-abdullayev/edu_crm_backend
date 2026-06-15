@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Post,
   Param,
   Body,
@@ -52,6 +53,18 @@ export class LessonsController {
     @TenantId() tenantId: string,
   ) {
     return this.coursesService.addLessonFromGroup(dto, tenantId);
+  }
+
+  @Get(':id')
+  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.OWNER)
+  @ApiOperation({ summary: 'Get lesson details' })
+  @ApiResponse({ status: 200, description: 'Lesson details' })
+  @ApiResponse({ status: 404, description: 'Lesson not found' })
+  getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.coursesService.getLessonDetail(id, tenantId);
   }
 
   @Post(':id/upload')

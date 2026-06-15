@@ -28,6 +28,9 @@ export class TeacherLessonItemDto {
   @ApiPropertyOptional()
   fileUrl?: string;
 
+  @ApiPropertyOptional({ description: 'Storage key for the attached file, usable with /files/:key/signed-url' })
+  fileKey?: string;
+
   @ApiProperty()
   order: number;
 

@@ -16,6 +16,9 @@ import { QueryCoursesDto } from './dto/query-courses.dto';
 import { EnrollmentResponseDto } from './dto/enrollment-response.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessonType } from '../../shared/enums';
+import { TeacherLessonItemDto } from '../teachers/dto/teacher-lesson-item.dto';
+
+const FILE_SERVE_PREFIX = '/api/v1/files/serve/';
 
 @Injectable()
 export class CoursesService {
@@ -187,6 +190,44 @@ export class CoursesService {
       enrolledAt: saved.enrolledAt.toISOString(),
       status: saved.isActive ? 'active' : 'dropped',
       groupId: dto.groupId,
+    };
+  }
+
+  async getLessonDetail(lessonId: string, tenantId: string): Promise<TeacherLessonItemDto> {
+    const lesson = await this.lessonsRepo.findOne({
+      where: { id: lessonId },
+      relations: ['course'],
+    });
+
+    if (!lesson || lesson.course.tenantId !== tenantId) {
+      throw new NotFoundException(`Lesson with id "${lessonId}" not found`);
+    }
+
+    const groupRows = await this.dataSource.query(
+      `SELECT id, name FROM groups WHERE course_id = $1 AND tenant_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [lesson.courseId, tenantId],
+    ) as Array<{ id: string; name: string }>;
+    const group = groupRows[0];
+
+    const fileKey = lesson.fileUrl?.startsWith(FILE_SERVE_PREFIX)
+      ? lesson.fileUrl.slice(FILE_SERVE_PREFIX.length)
+      : undefined;
+
+    return {
+      id: lesson.id,
+      title: lesson.title,
+      ...(lesson.content ? { description: lesson.content } : {}),
+      courseId: lesson.courseId,
+      ...(group ? { groupId: group.id, groupName: group.name } : {}),
+      type: lesson.type,
+      ...(lesson.videoUrl ? { videoUrl: lesson.videoUrl } : {}),
+      ...(lesson.fileUrl ? { fileUrl: lesson.fileUrl } : {}),
+      ...(fileKey ? { fileKey } : {}),
+      order: lesson.sortOrder,
+      durationMinutes: lesson.durationMinutes,
+      isPublished: lesson.isPublished,
+      createdAt: lesson.createdAt.toISOString(),
+      updatedAt: lesson.updatedAt.toISOString(),
     };
   }
 
