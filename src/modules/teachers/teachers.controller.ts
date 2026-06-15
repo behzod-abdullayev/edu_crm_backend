@@ -21,6 +21,7 @@ import { AttendanceSheetEntryDto } from './dto/attendance-sheet-entry.dto';
 import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 import { TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
 import { TeacherLessonListDto } from './dto/teacher-lesson-item.dto';
+import { TeacherExamListDto } from './dto/teacher-exam-item.dto';
 import { TeacherStudentListDto } from './dto/teacher-student-item.dto';
 
 @ApiTags('Teachers')
@@ -165,6 +166,21 @@ export class TeachersController {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = pageSize ? parseInt(pageSize, 10) : 20;
     return this.teachersService.getLessons(id, tenantId, groupId, pageNum, limitNum);
+  }
+
+  @Get(':id/exams')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Get exams created by this teacher' })
+  @ApiResponse({ status: 200, type: TeacherExamListDto, description: 'Paginated list of exams' })
+  getExams(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = pageSize ? parseInt(pageSize, 10) : 20;
+    return this.teachersService.getExams(id, tenantId, pageNum, limitNum);
   }
 
   @Get(':id/groups/:groupId/attendance-sheet')

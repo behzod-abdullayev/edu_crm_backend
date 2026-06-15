@@ -23,6 +23,7 @@ import { MarkGroupAttendanceDto } from './dto/mark-group-attendance.dto';
 import { AttendanceStatus } from '../../shared/enums';
 import { TeacherHomeworkItemDto, TeacherHomeworkListDto } from './dto/teacher-homework-item.dto';
 import { TeacherLessonItemDto, TeacherLessonListDto } from './dto/teacher-lesson-item.dto';
+import { TeacherExamItemDto, TeacherExamListDto } from './dto/teacher-exam-item.dto';
 import { TeacherStudentItemDto, TeacherStudentListDto } from './dto/teacher-student-item.dto';
 
 interface GroupRow { id: string; }
@@ -94,6 +95,22 @@ interface TeacherLessonRow {
   isPublished: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+interface TeacherExamRow {
+  id: string;
+  title: string;
+  description: string | null;
+  groupId: string | null;
+  groupName: string | null;
+  startAt: Date | null;
+  endAt: Date | null;
+  durationMinutes: number;
+  totalMarks: string;
+  passingMarks: string;
+  maxAttempts: number;
+  isPublished: boolean;
+  questionCount: string;
+  createdAt: Date;
 }
 
 @Injectable()
@@ -765,6 +782,70 @@ export class TeachersService {
         updatedAt: new Date(r.updatedAt).toISOString(),
       };
     });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+    };
+  }
+
+  // ─── NEW: Exams list ────────────────────────────────────────────────────────
+
+  async getExams(
+    teacherId: string,
+    tenantId: string,
+    page: number,
+    limit: number,
+  ): Promise<TeacherExamListDto> {
+    await this.findOne(teacherId, tenantId);
+
+    const offset = (page - 1) * limit;
+
+    const countRows = await this.dataSource.query(
+      `SELECT COUNT(*)::int as total FROM exams
+       WHERE teacher_id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [teacherId, tenantId],
+    ) as Array<{ total: number }>;
+    const total = countRows[0]?.total ?? 0;
+
+    const rows = await this.dataSource.query(
+      `SELECT e.id, e.title, e.description,
+              e.group_id as "groupId", g.name as "groupName",
+              e.start_at as "startAt", e.end_at as "endAt",
+              e.duration_minutes as "durationMinutes",
+              e.total_marks as "totalMarks", e.passing_marks as "passingMarks",
+              e.max_attempts as "maxAttempts", e.is_published as "isPublished",
+              COUNT(eq.id)::int as "questionCount",
+              e.created_at as "createdAt"
+       FROM exams e
+       LEFT JOIN groups g ON g.id = e.group_id
+       LEFT JOIN exam_questions eq ON eq.exam_id = e.id
+       WHERE e.teacher_id = $1 AND e.tenant_id = $2 AND e.deleted_at IS NULL
+       GROUP BY e.id, g.name
+       ORDER BY e.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [teacherId, tenantId, limit, offset],
+    ) as TeacherExamRow[];
+
+    const data: TeacherExamItemDto[] = rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      ...(r.description ? { description: r.description } : {}),
+      ...(r.groupId ? { groupId: r.groupId } : {}),
+      ...(r.groupName ? { groupName: r.groupName } : {}),
+      startAt: r.startAt ? new Date(r.startAt).toISOString() : null,
+      endAt: r.endAt ? new Date(r.endAt).toISOString() : null,
+      durationMinutes: Number(r.durationMinutes),
+      totalMarks: Number(r.totalMarks),
+      passingMarks: Number(r.passingMarks),
+      maxAttempts: Number(r.maxAttempts),
+      isPublished: r.isPublished,
+      questionCount: Number(r.questionCount),
+      createdAt: new Date(r.createdAt).toISOString(),
+    }));
 
     return {
       data,

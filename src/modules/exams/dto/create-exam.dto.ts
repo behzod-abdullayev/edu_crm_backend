@@ -35,6 +35,10 @@ export class CreateExamDto {
   @IsNotEmpty()
   title: string;
 
+  @ApiProperty({ description: 'Teacher ID' })
+  @IsUUID()
+  teacherId: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
