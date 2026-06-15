@@ -72,6 +72,7 @@ interface HomeworkSubmissionCountRow { homeworkId: string; total: string; graded
 interface HomeworkCountRow { assigned: string; graded: string; pending: string; }
 interface TeacherStudentRow {
   id: string;
+  userId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -317,7 +318,7 @@ export class TeachersService {
     const rows = await this.dataSource.query(
       `SELECT * FROM (
          SELECT DISTINCT ON (s.id)
-           s.id, u."firstName", u."lastName", u.email, u.phone,
+           s.id, s.user_id as "userId", u."firstName", u."lastName", u.email, u.phone,
            u.avatar_url as "avatarUrl", u.status, g.name as "groupName"
          FROM group_students gs
          JOIN students s ON s.id = gs.student_id
@@ -352,6 +353,7 @@ export class TeachersService {
 
       data.push({
         id: r.id,
+        userId: r.userId,
         firstName: r.firstName,
         lastName: r.lastName,
         email: r.email,

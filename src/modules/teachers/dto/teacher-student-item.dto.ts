@@ -5,6 +5,9 @@ export class TeacherStudentItemDto {
   id: string;
 
   @ApiProperty()
+  userId: string;
+
+  @ApiProperty()
   firstName: string;
 
   @ApiProperty()
