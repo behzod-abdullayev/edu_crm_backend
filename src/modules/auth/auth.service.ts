@@ -15,6 +15,7 @@ import * as qrcode from 'qrcode';
 
 import { User } from '../users/entities/user.entity';
 import { Teacher } from '../teachers/entities/teacher.entity';
+import { Student } from '../students/entities/student.entity';
 import { UserRole, UserStatus } from '../../shared/enums';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
@@ -43,6 +44,9 @@ export class AuthService {
 
     @InjectRepository(Teacher)
     private teacherRepo: Repository<Teacher>,
+
+    @InjectRepository(Student)
+    private studentRepo: Repository<Student>,
 
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -96,12 +100,20 @@ export class AuthService {
   // ====================== USER PAYLOAD (/auth/me, login, refresh) ======================
   async buildUserPayload(user: User): Promise<MeResponseDto> {
     let teacherId: string | null = null;
+    let studentId: string | null = null;
 
     if (user.role === UserRole.TEACHER) {
       const teacher = await this.teacherRepo.findOne({
         where: { userId: user.id, tenantId: user.tenantId },
       });
       teacherId = teacher?.id ?? null;
+    }
+
+    if (user.role === UserRole.STUDENT) {
+      const student = await this.studentRepo.findOne({
+        where: { userId: user.id, tenantId: user.tenantId },
+      });
+      studentId = student?.id ?? null;
     }
 
     return {
@@ -119,6 +131,7 @@ export class AuthService {
       permissions: getPermissionsForRole(user.role),
       createdAt: user.createdAt,
       teacherId,
+      studentId,
     };
   }
 

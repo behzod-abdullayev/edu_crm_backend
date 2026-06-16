@@ -21,6 +21,7 @@ import { SubmitHomeworkDto } from './dto/submit-homework.dto';
 import { CourseGradesSummaryDto } from './dto/course-grades-summary.dto';
 import { StudentAttendanceRecordDto } from './dto/student-attendance-record.dto';
 import { StudentDetailResponseDto } from './dto/student-detail-response.dto';
+import { StudentTeacherListDto, StudentTeacherItemDto } from './dto/student-teacher-item.dto';
 import { paginateArray, getPaginationParams } from '../../common/utils/pagination.util';
 
 interface EnrollDto {
@@ -67,6 +68,15 @@ interface NotificationRow {
 }
 
 interface TotalRow { total: string; }
+
+interface StudentTeacherRow {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  groupName: string | null;
+}
 
 @Injectable()
 export class StudentsService {
@@ -273,6 +283,41 @@ export class StudentsService {
        WHERE e.student_id = $1 AND e.tenant_id = $2 ORDER BY e.enrolled_at DESC`,
       [id, tenantId],
     ) as Promise<unknown[]>;
+  }
+
+  /** Teachers across all groups the student is enrolled in — used for the chat contact picker. */
+  async getTeachers(id: string, tenantId: string, search?: string): Promise<StudentTeacherListDto> {
+    await this.findOne(id, tenantId);
+
+    const searchPattern = search ? `%${search}%` : null;
+
+    const rows = await this.dataSource.query(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (t.id)
+           t.id, t.user_id as "userId", u."firstName", u."lastName",
+           u.avatar_url as "avatarUrl", g.name as "groupName"
+         FROM group_students gs
+         JOIN groups g ON g.id = gs.group_id
+         JOIN teachers t ON t.id = g.teacher_id
+         JOIN users u ON u.id = t.user_id
+         WHERE gs.student_id = $1 AND g.deleted_at IS NULL AND t.tenant_id = $2
+           AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3)
+         ORDER BY t.id, g.name
+       ) sub
+       ORDER BY sub."lastName", sub."firstName"`,
+      [id, tenantId, searchPattern],
+    ) as StudentTeacherRow[];
+
+    const data: StudentTeacherItemDto[] = rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      ...(r.avatarUrl ? { avatarUrl: r.avatarUrl } : {}),
+      ...(r.groupName ? { groupName: r.groupName } : {}),
+    }));
+
+    return { data, total: data.length };
   }
 
   async enroll(id: string, dto: EnrollDto, tenantId: string): Promise<{ message: string }> {

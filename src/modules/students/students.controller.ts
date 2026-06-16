@@ -25,6 +25,7 @@ import { CourseGradesSummaryDto } from './dto/course-grades-summary.dto';
 import { StudentAttendanceRecordDto } from './dto/student-attendance-record.dto';
 import { EnrolledCourseResponseDto } from './dto/enrolled-course-response.dto';
 import { StudentScheduleEventDto } from './dto/student-schedule-event.dto';
+import { StudentTeacherListDto } from './dto/student-teacher-item.dto';
 
 export class SubmitHomeworkBodyDto {
   @ApiPropertyOptional({ description: 'Text content of the submission' })
@@ -144,6 +145,18 @@ export class StudentsController {
   })
   getCourses(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.studentsService.getCourses(id, tenantId);
+  }
+
+  @Get(':id/teachers')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get teachers across all groups the student is enrolled in (chat contact picker)' })
+  @ApiResponse({ status: 200, type: StudentTeacherListDto, description: 'List of teachers' })
+  getTeachers(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+    @Query('search') search?: string,
+  ) {
+    return this.studentsService.getTeachers(id, tenantId, search);
   }
 
   @Post(':id/enroll')

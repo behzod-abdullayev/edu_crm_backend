@@ -50,4 +50,10 @@ export class MeResponseDto {
     description: 'Teacher profile ID (teachers.id), present only for users with the teacher role. Required for /teachers/:id/* endpoints.',
   })
   teacherId: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Student profile ID (students.id), present only for users with the student role. Required for /students/:id/* endpoints.',
+  })
+  studentId: string | null;
 }
