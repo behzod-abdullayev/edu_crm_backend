@@ -215,6 +215,24 @@ export class ChatService {
     }));
   }
 
+  /** Mark all unread messages in a conversation as read for the given user. */
+  async markConversationRead(roomId: string, userId: string, tenantId: string): Promise<void> {
+    const room = await this.roomRepo.findOne({ where: { id: roomId, tenantId } });
+    if (!room) throw new NotFoundException('Conversation not found');
+    if (!room.participantIds.includes(userId))
+      throw new ForbiddenException('You are not a participant of this conversation');
+
+    await this.msgRepo
+      .createQueryBuilder()
+      .update()
+      .set({ isRead: true, readAt: new Date() })
+      .where(
+        'roomId = :roomId AND tenantId = :tenantId AND senderId != :userId AND isRead = false',
+        { roomId, tenantId, userId },
+      )
+      .execute();
+  }
+
   /** Send a message in a conversation, returning it shaped for the chat UI. */
   async sendConversationMessage(
     roomId: string,

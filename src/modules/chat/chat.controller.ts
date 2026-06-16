@@ -102,6 +102,16 @@ export class ChatController {
     return this.chatService.getConversationMessages(id, user.id, tenantId, page, limit);
   }
 
+  @Post('conversations/:id/read')
+  @ApiOperation({ summary: 'Mark all messages in a conversation as read' })
+  markConversationRead(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+    @TenantId() tenantId: string,
+  ) {
+    return this.chatService.markConversationRead(id, user.id, tenantId);
+  }
+
   @Post('conversations/:id/messages')
   @ApiOperation({ summary: 'Send a message in a conversation' })
   @ApiResponse({ status: 201, type: ConversationMessageDto })
