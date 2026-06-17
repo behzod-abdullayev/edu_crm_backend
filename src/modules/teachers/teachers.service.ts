@@ -257,7 +257,13 @@ export class TeachersService {
        FROM groups g
        LEFT JOIN courses c ON c.id = g.course_id
        LEFT JOIN group_students gs ON gs.group_id = g.id
-       WHERE g.teacher_id = $1 AND g.tenant_id = $2 AND g.deleted_at IS NULL
+       WHERE g.tenant_id = $2 AND g.deleted_at IS NULL
+         AND (
+           g.teacher_id = $1
+           OR g.course_id IN (
+             SELECT id FROM courses WHERE teacher_id = $1 AND tenant_id = $2
+           )
+         )
        GROUP BY g.id, g.name, g.description, g.tenant_id, g.teacher_id, g.created_at, g.is_active, c.title
        ORDER BY g.created_at DESC`,
       [id, tenantId],
@@ -303,32 +309,51 @@ export class TeachersService {
     const offset = (page - 1) * limit;
     const searchPattern = search ? `%${search}%` : null;
 
+    // Count: students in teacher's groups OR enrolled in teacher's courses
     const countRows = await this.dataSource.query(
       `SELECT COUNT(DISTINCT s.id)::int as total
-       FROM group_students gs
-       JOIN students s ON s.id = gs.student_id
+       FROM students s
        JOIN users u ON u.id = s.user_id
-       JOIN groups g ON g.id = gs.group_id
-       WHERE g.teacher_id = $1 AND s.tenant_id = $2 AND g.deleted_at IS NULL
-         AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3 OR u.email ILIKE $3 OR s.student_code ILIKE $3)`,
+       WHERE s.tenant_id = $2
+         AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3 OR u.email ILIKE $3)
+         AND (
+           EXISTS (
+             SELECT 1 FROM group_students gs JOIN groups g ON g.id = gs.group_id
+             WHERE gs.student_id = s.id AND g.teacher_id = $1 AND g.deleted_at IS NULL
+           ) OR EXISTS (
+             SELECT 1 FROM enrollments e JOIN courses c ON c.id = e.course_id
+             WHERE e.student_id = s.id AND c.teacher_id = $1 AND c.tenant_id = $2
+           )
+         )`,
       [id, tenantId, searchPattern],
     ) as Array<{ total: number }>;
     const total = countRows[0]?.total ?? 0;
 
+    // Fetch: prefer group name, fall back to course title
     const rows = await this.dataSource.query(
-      `SELECT * FROM (
-         SELECT DISTINCT ON (s.id)
-           s.id, s.user_id as "userId", u."firstName", u."lastName", u.email, u.phone,
-           u.avatar_url as "avatarUrl", u.status, g.name as "groupName"
-         FROM group_students gs
-         JOIN students s ON s.id = gs.student_id
-         JOIN users u ON u.id = s.user_id
-         JOIN groups g ON g.id = gs.group_id
-         WHERE g.teacher_id = $1 AND s.tenant_id = $2 AND g.deleted_at IS NULL
-           AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3 OR u.email ILIKE $3 OR s.student_code ILIKE $3)
-         ORDER BY s.id, g.name
-       ) sub
-       ORDER BY sub."lastName", sub."firstName"
+      `SELECT DISTINCT ON (s.id) s.id, s.user_id as "userId",
+              u."firstName", u."lastName", u.email, u.phone,
+              u.avatar_url as "avatarUrl", u.status,
+              COALESCE(
+                (SELECT g.name FROM group_students gs JOIN groups g ON g.id = gs.group_id
+                 WHERE gs.student_id = s.id AND g.teacher_id = $1 AND g.deleted_at IS NULL LIMIT 1),
+                (SELECT c.title FROM enrollments e JOIN courses c ON c.id = e.course_id
+                 WHERE e.student_id = s.id AND c.teacher_id = $1 AND c.tenant_id = $2 LIMIT 1)
+              ) as "groupName"
+       FROM students s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.tenant_id = $2
+         AND ($3::text IS NULL OR u."firstName" ILIKE $3 OR u."lastName" ILIKE $3 OR u.email ILIKE $3)
+         AND (
+           EXISTS (
+             SELECT 1 FROM group_students gs JOIN groups g ON g.id = gs.group_id
+             WHERE gs.student_id = s.id AND g.teacher_id = $1 AND g.deleted_at IS NULL
+           ) OR EXISTS (
+             SELECT 1 FROM enrollments e JOIN courses c ON c.id = e.course_id
+             WHERE e.student_id = s.id AND c.teacher_id = $1 AND c.tenant_id = $2
+           )
+         )
+       ORDER BY s.id, u."lastName", u."firstName"
        LIMIT $4 OFFSET $5`,
       [id, tenantId, searchPattern, limit, offset],
     ) as TeacherStudentRow[];

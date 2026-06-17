@@ -23,7 +23,7 @@ export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
   @Post()
-  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.TEACHER)
   @ApiOperation({ summary: 'Create a group' })
   @ApiResponse({ status: 201, type: GroupResponseDto, description: 'Group created' })
   @ApiResponse({ status: 400, description: 'Validation failed' })

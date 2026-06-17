@@ -161,6 +161,19 @@ export class OwnerController {
     return this.ownerService.assignUserRole(id, tenantId, dto);
   }
 
+  @Delete('users/:id')
+  @Roles(UserRole.OWNER)
+  @ApiOperation({ summary: 'Soft-delete a user (sets deleted_at)' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Cannot delete Super Admin' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  deleteUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+  ): Promise<{ message: string }> {
+    return this.ownerService.deleteUser(tenantId, id);
+  }
+
   @Post('users/invite')
   @Roles(UserRole.OWNER)
   @ApiOperation({ summary: 'Invite a new user (creates a pending account)' })

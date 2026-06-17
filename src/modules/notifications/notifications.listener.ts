@@ -5,9 +5,11 @@ import { NotificationsService } from './notifications.service';
 import { User } from '../users/entities/user.entity';
 import { NotificationChannel } from '../../shared/enums';
 import { InjectRepository } from '@nestjs/typeorm';
+import { MailService } from '../../mail/mail.service';
 
 interface AuthLoginEvent { userId: string; ip: string; }
 interface UserCreatedEvent { user: User; }
+interface UserInvitedEvent { tenantId: string; userId: string; email: string; role: string; inviteToken: string; tempPassword: string; }
 interface EnrollmentCreatedEvent { enrollment: { studentId: string; tenantId: string }; course: { title: string } }
 interface PaymentCreatedEvent { payment: { studentId: string; tenantId: string; invoiceNumber: string; totalAmount: number } }
 interface PaymentPaidEvent { payment: { studentId: string; tenantId: string; invoiceNumber: string } }
@@ -19,6 +21,7 @@ export class NotificationsListener {
   constructor(
     private notificationsService: NotificationsService,
     @InjectRepository(User) private userRepo: Repository<User>,
+    private mailService: MailService,
   ) {}
 
   @OnEvent('auth.login')
@@ -38,6 +41,19 @@ export class NotificationsListener {
       });
     } catch (err) {
       this.logger.error('Failed to send welcome notification', err);
+    }
+  }
+
+  @OnEvent('user.invited')
+  async handleUserInvited(event: UserInvitedEvent): Promise<void> {
+    try {
+      const user = await this.userRepo.findOne({ where: { id: event.userId } });
+      const name = user?.firstName || event.email.split('@')[0] || 'User';
+      const appUrl = process.env['APP_URL'] ?? 'http://localhost:3000';
+      const inviteUrl = `${appUrl}/uz/accept-invite?token=${event.inviteToken}`;
+      await this.mailService.sendInviteEmail(event.email, name, inviteUrl, event.tempPassword);
+    } catch (err) {
+      this.logger.error('Failed to send invite email', err);
     }
   }
 

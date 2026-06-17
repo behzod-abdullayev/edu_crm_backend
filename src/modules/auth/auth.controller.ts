@@ -132,6 +132,18 @@ export class AuthController {
     return this.authService.getMe(user);
   }
 
+  @Public()
+  @Post('accept-invite')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
+  @ApiOperation({ summary: 'Accept an invitation and set a new password' })
+  @ApiResponse({ status: 200, description: 'Invitation accepted successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid token or weak password' })
+  @ApiResponse({ status: 404, description: 'Token not found or expired' })
+  async acceptInvite(@Body() body: { token: string }) {
+    return this.authService.acceptInvite(body.token);
+  }
+
   @Post('2fa/setup')
   @ApiBearerAuth('JWT')
   @ApiOperation({ summary: 'Initialize 2FA setup' })

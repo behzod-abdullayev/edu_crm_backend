@@ -190,6 +190,9 @@ export class AuthService {
     if (user.status === UserStatus.BLOCKED) {
       throw new UnauthorizedException('Your account has been blocked');
     }
+    if (user.status === UserStatus.PENDING) {
+      throw new UnauthorizedException('Taklifingizni qabul qiling. Emailingizga yuborilgan taklif havolasini bosing.');
+    }
 
     if (user.twoFaEnabled) {
       if (!dto.twoFaToken) throw new UnauthorizedException('2FA token is required');
@@ -432,5 +435,27 @@ export class AuthService {
       .set({ twoFaEnabled: false, twoFaSecret: '' })
       .where('id = :id', { id: userId })
       .execute();
+  }
+
+  async acceptInvite(token: string): Promise<{ message: string }> {
+    if (!token || token.length < 16) throw new BadRequestException('Invalid invitation token');
+
+    const rows = await this.userRepo.query(
+      `SELECT id FROM users WHERE metadata->>'inviteToken' = $1 AND status = 'pending' AND deleted_at IS NULL LIMIT 1`,
+      [token],
+    ) as Array<{ id: string }>;
+
+    if (!rows.length) throw new NotFoundException('Invalid or expired invitation token');
+
+    await this.userRepo.query(
+      `UPDATE users
+       SET status = 'active', is_email_verified = true,
+           metadata = (COALESCE(metadata, '{}'::jsonb) - 'inviteToken') || '{"acceptedAt":"${new Date().toISOString()}"}'::jsonb,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [rows[0].id],
+    );
+
+    return { message: 'Invitation accepted. You can now log in.' };
   }
 }

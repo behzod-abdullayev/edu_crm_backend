@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, IsDateString, IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
+import { IsUUID, IsDateString, IsString, IsOptional, IsEnum, IsBoolean, IsNumber, Min, IsObject } from 'class-validator';
 
 export enum ScheduleType { REGULAR = 'regular', MAKEUP = 'makeup', EXAM = 'exam', EVENT = 'event' }
 export enum ScheduleStatus { SCHEDULED = 'scheduled', COMPLETED = 'completed', CANCELLED = 'cancelled', POSTPONED = 'postponed' }
+export enum RepeatRule { DAILY = 'daily', WEEKLY = 'weekly', BIWEEKLY = 'biweekly', MONTHLY = 'monthly', ODD_DAYS = 'odd-days', EVEN_DAYS = 'even-days' }
 
 export class CreateScheduleDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() groupId?: string;
@@ -16,4 +17,8 @@ export class CreateScheduleDto {
   @ApiPropertyOptional({ enum: ScheduleType }) @IsOptional() @IsEnum(ScheduleType) type?: ScheduleType;
   @ApiPropertyOptional() @IsOptional() @IsString() timezone?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isRecurring?: boolean;
+  @ApiPropertyOptional({ enum: RepeatRule }) @IsOptional() @IsEnum(RepeatRule) repeatRule?: RepeatRule;
+  @ApiPropertyOptional() @IsOptional() @IsDateString() courseEndDate?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) totalLessons?: number;
+  @ApiPropertyOptional() @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }

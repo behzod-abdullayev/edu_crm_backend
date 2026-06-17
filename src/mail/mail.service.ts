@@ -151,6 +151,69 @@ export class MailService {
     return this.send(email, `Parolni tiklash kodi: ${otpCode} — ${this.appName}`, content, `Tasdiqlash kodingiz: ${otpCode}`);
   }
 
+  // ─── Invite Email ────────────────────────────────────────────────────────
+  async sendInviteEmail(email: string, name: string, inviteUrl: string, tempPassword: string): Promise<boolean> {
+    const content = `
+      <div class="success-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Sizga taklif yuborildi
+      </div>
+
+      <h1 class="greeting">Xush kelibsiz, ${name}!</h1>
+      <p class="subtitle">
+        Siz <strong>${this.appName}</strong> tizimiga taklif qilindingiz.<br>
+        Quyida sizning akkauntingiz uchun vaqtinchalik parol ko'rsatilgan.
+      </p>
+
+      <!-- Parol bloki -->
+      <div style="background:linear-gradient(135deg,#eff6ff 0%,#eef2ff 100%);border:1.5px solid #bfdbfe;border-radius:14px;padding:28px 24px;text-align:center;margin:8px 0 20px;">
+        <p style="font-size:11px;font-weight:700;color:#6b7280;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px;">Sizning vaqtinchalik parolingiz</p>
+        <div style="background:#0f172a;border-radius:12px;padding:18px 28px;display:inline-block;cursor:text;">
+          <p style="font-family:'Courier New',Courier,monospace;font-size:28px;font-weight:700;color:#ffffff;letter-spacing:6px;margin:0;user-select:all;-webkit-user-select:all;">${tempPassword}</p>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin:14px 0 0;">Parolni <strong>nusxa oling</strong> — quyidagi tugmani bosgandan so'ng to'g'ridan-to'g'ri login sahifasiga o'tasiz</p>
+      </div>
+
+      <!-- Muhim ogohlantirish -->
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:14px 16px;display:flex;gap:10px;margin-bottom:20px;">
+        <span style="font-size:20px;flex-shrink:0;">⚠️</span>
+        <p style="font-size:13px;color:#9a3412;line-height:1.6;margin:0;">
+          <strong>Muhim:</strong> Quyidagi "Taklifni qabul qilish" tugmasini bosishdan <strong>OLDIN</strong> yuqoridagi parolni nusxalab oling!
+          Tugmani bosganingizda siz to'g'ridan-to'g'ri <strong>login sahifasiga</strong> o'tasiz va o'sha parol bilan kirishingiz kerak bo'ladi.
+        </p>
+      </div>
+
+      <div class="btn-center">
+        <a href="${inviteUrl}" class="btn btn-primary">Taklifni qabul qilish →</a>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Kirish ma'lumotlari -->
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:20px 24px;margin-bottom:20px;">
+        <p style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px;">Kirish ma'lumotlari</p>
+        <div class="info-row">
+          <span class="info-label">📧 Email:</span>
+          <span style="color:#1e293b;font-weight:500;">${email}</span>
+        </div>
+        <div class="info-row" style="border-bottom:none;">
+          <span class="info-label">🔑 Parol:</span>
+          <code style="background:#1e293b;color:#f1f5f9;padding:4px 10px;border-radius:6px;font-size:14px;letter-spacing:1px;">${tempPassword}</code>
+        </div>
+      </div>
+
+      <!-- Maslahat -->
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;display:flex;gap:10px;">
+        <span style="font-size:18px;flex-shrink:0;">💡</span>
+        <p style="font-size:13px;color:#14532d;line-height:1.6;margin:0;">
+          Tizimga kirganingizdan so'ng, xavfsizlik uchun vaqtinchalik parolni esda qoladigan parolga o'zgartirishni tavsiya qilamiz.
+        </p>
+      </div>
+    `;
+
+    return this.send(email, `${this.appName} — Sizga taklif yuborildi, ${name}!`, content, `Parolingiz: ${tempPassword} — ${this.appName} taklifini qabul qiling`);
+  }
+
   // ─── Welcome Email ────────────────────────────────────────────────────────
   async sendWelcomeEmail(email: string, name: string, password: string): Promise<boolean> {
     const content = `

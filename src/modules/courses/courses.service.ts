@@ -17,6 +17,7 @@ import { EnrollmentResponseDto } from './dto/enrollment-response.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessonType } from '../../shared/enums';
 import { TeacherLessonItemDto } from '../teachers/dto/teacher-lesson-item.dto';
+import { Teacher } from '../teachers/entities/teacher.entity';
 
 const FILE_SERVE_PREFIX = '/api/v1/files/serve/';
 
@@ -27,6 +28,7 @@ export class CoursesService {
     @InjectRepository(Lesson) private lessonsRepo: Repository<Lesson>,
     @InjectRepository(Enrollment) private enrollmentsRepo: Repository<Enrollment>,
     @InjectRepository(CourseModule) private modulesRepo: Repository<CourseModule>,
+    @InjectRepository(Teacher) private teacherRepo: Repository<Teacher>,
     private dataSource: DataSource,
     private eventEmitter: EventEmitter2,
   ) {}
@@ -50,7 +52,18 @@ export class CoursesService {
   }
 
   async create(dto: CreateCourseDto, tenantId: string): Promise<Course> {
-    const course = this.coursesRepository.create({ ...dto, tenantId } as any);
+    let { teacherId } = dto;
+    if (teacherId) {
+      // Accept either teacher entity ID or user ID — resolve to teacher entity ID
+      const teacher = await this.teacherRepo.findOne({
+        where: [
+          { id: teacherId, tenantId },
+          { userId: teacherId, tenantId },
+        ],
+      });
+      if (teacher) teacherId = teacher.id;
+    }
+    const course = this.coursesRepository.create({ ...dto, teacherId, tenantId } as any);
     const saved = await this.coursesRepository.save(course) as unknown as Course;
     this.eventEmitter.emit('course.created', { course: saved, tenantId });
     return saved;

@@ -1147,28 +1147,67 @@ export class OwnerService {
       throw new ForbiddenException('Cannot invite a user with the Super Admin role');
     }
 
-    const existing = await this.dataSource.query(
+    // Block if an active (non-deleted) user with this email already exists.
+    const active = await this.dataSource.query(
       `SELECT id FROM users WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
       [dto.email, tenantId],
     ) as Array<{ id: string }>;
-    if (existing.length) throw new ConflictException('User with this email already exists in this tenant');
+    if (active.length) throw new ConflictException('User with this email already exists in this tenant');
 
-    const userId = uuidv4();
-    const tempPassword = crypto.randomBytes(12).toString('hex');
+    const tempPassword = crypto.randomBytes(8).toString('base64url').slice(0, 12);
     const hashedPassword = await bcrypt.hash(tempPassword, 12);
     const firstName = dto.firstName?.trim() || dto.email.split('@')[0] || 'New';
     const lastName = dto.lastName?.trim() || '';
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const metadata = JSON.stringify({ inviteToken, invitedAt: new Date().toISOString() });
 
-    await this.dataSource.query(
-      `INSERT INTO users (id, tenant_id, "firstName", "lastName", email, password, role, status, is_email_verified, metadata, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
-      [userId, tenantId, firstName, lastName, dto.email, hashedPassword, dto.role, UserStatus.PENDING, false, JSON.stringify({})],
-    );
+    // Re-invite: if a soft-deleted record exists, restore it instead of inserting a duplicate.
+    const deleted = await this.dataSource.query(
+      `SELECT id FROM users WHERE email = $1 AND tenant_id = $2 AND deleted_at IS NOT NULL`,
+      [dto.email, tenantId],
+    ) as Array<{ id: string }>;
 
-    this.eventEmitter.emit('user.invited', { tenantId, userId, email: dto.email, role: dto.role, tempPassword });
+    let userId: string;
+    if (deleted.length) {
+      userId = deleted[0].id;
+      await this.dataSource.query(
+        `UPDATE users
+         SET deleted_at = NULL, password = $1, role = $2, status = $3,
+             is_email_verified = false, "firstName" = $4, "lastName" = $5,
+             metadata = $6, updated_at = NOW()
+         WHERE id = $7 AND tenant_id = $8`,
+        [hashedPassword, dto.role, UserStatus.PENDING, firstName, lastName, metadata, userId, tenantId],
+      );
+    } else {
+      userId = uuidv4();
+      await this.dataSource.query(
+        `INSERT INTO users (id, tenant_id, "firstName", "lastName", email, password, role, status, is_email_verified, metadata, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+        [userId, tenantId, firstName, lastName, dto.email, hashedPassword, dto.role, UserStatus.PENDING, false, metadata],
+      );
+    }
+
+    this.eventEmitter.emit('user.invited', { tenantId, userId, email: dto.email, role: dto.role, inviteToken, tempPassword });
     this.eventEmitter.emit('audit.action', { tenantId, action: 'user_invited', entityId: userId, newValue: { email: dto.email, role: dto.role } });
 
     return { message: 'User invited successfully', userId, email: dto.email, role: dto.role };
+  }
+
+  async deleteUser(tenantId: string, userId: string): Promise<{ message: string }> {
+    const rows = await this.dataSource.query(
+      `SELECT id, role FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+      [userId, tenantId],
+    ) as Array<{ id: string; role: string }>;
+    if (!rows.length) throw new NotFoundException('User not found');
+    if (rows[0].role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Cannot delete a Super Admin user');
+    }
+    await this.dataSource.query(
+      `UPDATE users SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+      [userId, tenantId],
+    );
+    this.eventEmitter.emit('audit.action', { tenantId, action: 'user_deleted', entityId: userId });
+    return { message: 'User deleted successfully' };
   }
 
   async getSystemConfig(tenantId: string): Promise<TenantRow> {
